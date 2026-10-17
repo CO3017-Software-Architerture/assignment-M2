@@ -1,15 +1,19 @@
 #include <iostream>
 
-#include "main.h"
+#include "main.hpp"
 
-
-int run()
+int tc_01()
 {
-    std::cout << qrgen::generateCode() << '\n';
+    std::cout<<"---TEST CASE 01----\n";
+    Employee staf01(0,"mjnk","Admin",AccessLevel::Administrator);
+    std::cout<<qrgen::generateCode(staf01)<<'\n';
+    std::cout<<"\n--------------------\n";
+    //exit(EXIT_SUCCESS);
     return 0;
 }
 
+
 int main()
 {
-    return run();
+    return tc_01();
 }
