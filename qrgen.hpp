@@ -4,6 +4,7 @@
 #include <string>
 #include "employees.hpp"
 #include <chrono>
+#include "chacha20.hpp"
 
 namespace qrgen
 {
