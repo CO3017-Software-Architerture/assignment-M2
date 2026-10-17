@@ -1,11 +1,11 @@
 #include <iostream>
 
 #include "main.h"
-#include "mylib.h"
+
 
 int run()
 {
-    std::cout << mylib::message() << '\n';
+    std::cout << qrgen::generateCode() << '\n';
     return 0;
 }
 
