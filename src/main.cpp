@@ -1,6 +1,6 @@
 #include <iostream>
 
-#include "main.hpp"
+#include "..\header\main.hpp"
 
 const uint8_t KEY[32] = {
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,

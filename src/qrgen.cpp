@@ -1,4 +1,4 @@
-#include "qrgen.hpp"
+#include "..\header\qrgen.hpp"
 
 
 const uint8_t KEY[32] = {
