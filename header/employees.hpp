@@ -30,6 +30,17 @@ class Employee
 
 };
 
+// Implement this interface using the chosen database backend.
+class IEmployeeDatabase
+{
+public:
+    virtual ~IEmployeeDatabase() = default;
+
+    // Match all employee fields, not just the employee ID.
+    // Database failures must throw rather than report a mismatch.
+    virtual bool matches(const Employee& employee) const = 0;
+};
+
 // class IEmployeeRepository
 // {
 // public:
