@@ -8,6 +8,10 @@
 #include <string>
 #include <algorithm>
 
+/*
+TODO: refactor để đổi chuẩn data type lại của thư viện
+*/
+
 class ChaCha20 {
 private:
     std::array<uint32_t, 16> state;
@@ -68,12 +72,17 @@ public:
     }
 
     // Hàm mã hóa/giải mã (vì đối xứng XOR nên dùng chung một hàm)
+    /*  input là pointer trở tới vùng data
+        output là pointer trỏ tới vùng đã allocate rỗng
+        length là độ dài của input        
+    */
     void crypt(const uint8_t* input, uint8_t* output, size_t length) {
         std::array<uint32_t, 16> block_output;
         uint8_t keystream[64];
         size_t i = 0;
 
         while (length > 0) {
+            // tạo ma trận key stream
             chachaBlock(block_output, state);
             
             // Chuyển ma trận 16 từ 32-bit thành mảng 64 byte keystream (Little-endian)
@@ -83,7 +92,7 @@ public:
                 keystream[j * 4 + 2] = (block_output[j] >> 16) & 0xFF;
                 keystream[j * 4 + 3] = (block_output[j] >> 24) & 0xFF;
             }
-
+            // đã flat xong key stream
             size_t take = std::min(length, (size_t)64);
             for (size_t j = 0; j < take; ++j) {
                 output[i] = input[i] ^ keystream[j];
