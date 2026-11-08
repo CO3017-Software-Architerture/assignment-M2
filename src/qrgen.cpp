@@ -14,16 +14,16 @@ namespace qrgen
     std::string generateCode(Employee employee)
     {
         std::string res;
-        res += std::to_string(employee.getID());
-        res += employee.getName();
-        res += employee.getRole();
-        res += std::to_string(int(employee.getAccesslevel()));
-        res += std::to_string(std::time(nullptr));
+        res += std::to_string(employee.getID()) + '/';
+        res += employee.getName() + '/';
+        res += employee.getRole() + '/';
+        res += std::to_string(int(employee.getAccesslevel())) + '/';
+        res += std::to_string(std::time(nullptr)) + '/';
 
         const crypto::Nonce nonce = crypto::generateNonce();
         const std::string ciphertext =
             crypto::ChaCha20Cipher::encrypt(res, KEY, nonce);
         return std::string(
-            reinterpret_cast<const char*>(nonce.data()), nonce.size()) + ciphertext;
+            reinterpret_cast<const char*>(nonce.data()), nonce.size()) + '|' + ciphertext;
     }
 }
