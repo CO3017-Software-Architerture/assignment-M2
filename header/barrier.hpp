@@ -1,20 +1,18 @@
-#include "main.hpp"
+#ifndef BARRIER_HPP
+#define BARRIER_HPP
 
 class Barrier
 {
 private:
-    /* data */
+    bool m_isOpen{false};
+
 public:
-    Barrier(/* args */);
-    ~Barrier();
-    void OpenGate();
-    void CloseGate();
+    Barrier() : m_isOpen(false) {}
+    ~Barrier() = default;
+
+    void OpenGate() { m_isOpen = true; }
+    void CloseGate() { m_isOpen = false; }
+    bool isOpen() const { return m_isOpen; }
 };
 
-Barrier::Barrier(/* args */)
-{
-}
-
-Barrier::~Barrier()
-{
-}
+#endif

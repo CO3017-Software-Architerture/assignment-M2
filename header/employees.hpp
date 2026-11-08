@@ -3,34 +3,57 @@
 
 #include <string>
 #include <vector>
-// FINAL?
+#include <optional>
+#include <stdexcept>
+
 enum class AccessLevel
 {
-    Guest,
-    Employee,
-    Manager,
-    Administrator
+    Guest = 0,
+    Employee = 1,
+    Manager = 2,
+    Administrator = 3
 };
 
 class Employee
 {
-    private:
-        int id{};
-        std::string name;
-        std::string role;
-        AccessLevel accessLevel{AccessLevel::Employee};
-        char branch{};
-    public:
-        Employee(int id, std::string name, std::string role, AccessLevel accessLevel);
-        ~Employee();
-        std::string getName();
-        int getID();
-        std::string getRole();
-        AccessLevel getAccesslevel();
+private:
+    int id{0};
+    std::string name;
+    std::string role;
+    AccessLevel accessLevel{AccessLevel::Employee};
+    char branch{'B'};
 
+public:
+    Employee(int id = 0, std::string name = "", std::string role = "", AccessLevel accessLevel = AccessLevel::Employee, char branch = 'B');
+    ~Employee();
+
+    std::string getName() const;
+    int getID() const;
+    std::string getRole() const;
+    AccessLevel getAccesslevel() const;
+    char getBranch() const;
+
+    void setID(int newId);
+    void setName(const std::string& newName);
+    void setRole(const std::string& newRole);
+    void setAccessLevel(AccessLevel newLevel);
+    void setBranch(char newBranch);
+
+    bool operator==(const Employee& other) const;
+    bool operator!=(const Employee& other) const;
+
+    // Serialize employee to delimited payload: "id|name|role|accessLevel|branch"
+    std::string toPayloadString() const;
+
+    // Parse employee from delimited payload
+    static Employee fromPayloadString(const std::string& payload);
+
+    // Helpers for AccessLevel string conversion
+    static std::string accessLevelToString(AccessLevel level);
+    static AccessLevel accessLevelFromString(const std::string& str);
 };
 
-// Implement this interface using the chosen database backend.
+// Interface for employee database verification
 class IEmployeeDatabase
 {
 public:
@@ -41,14 +64,45 @@ public:
     virtual bool matches(const Employee& employee) const = 0;
 };
 
-// class IEmployeeRepository
-// {
-// public:
-//     virtual ~IEmployeeRepository() = default;
+// In-memory implementation of IEmployeeDatabase for testing and operation
+class InMemoryEmployeeDatabase : public IEmployeeDatabase
+{
+private:
+    std::vector<Employee> m_records;
 
-//     virtual bool insert(const Employee& employee) = 0;
-//     virtual bool update(const Employee& employee) = 0;
-//     virtual bool removeById(std::int32_t id) = 0;
-// };
+public:
+    InMemoryEmployeeDatabase() = default;
+
+    void addEmployee(const Employee& employee)
+    {
+        m_records.push_back(employee);
+    }
+
+    void clear()
+    {
+        m_records.clear();
+    }
+
+    const std::vector<Employee>& getRecords() const
+    {
+        return m_records;
+    }
+
+    bool matches(const Employee& employee) const override
+    {
+        for (const auto& emp : m_records)
+        {
+            if (emp.getID() == employee.getID() &&
+                emp.getName() == employee.getName() &&
+                emp.getRole() == employee.getRole() &&
+                emp.getAccesslevel() == employee.getAccesslevel() &&
+                emp.getBranch() == employee.getBranch())
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+};
 
 #endif

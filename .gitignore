@@ -1,2 +1,143 @@
-main.exe
-input/
+# -------------------------
+# Build directories
+# -------------------------
+build/
+build-*/
+cmake-build-*/
+out/
+bin/
+obj/
+debug/
+release/
+dist/
+
+# -------------------------
+# CMake
+# -------------------------
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CPackConfig.cmake
+CPackSourceConfig.cmake
+CTestTestfile.cmake
+Makefile
+compile_commands.json
+_install/
+Testing/
+
+# -------------------------
+# Compiled files and libraries
+# -------------------------
+*.o
+*.obj
+*.lo
+*.la
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+*.pdb
+*.ilk
+*.exp
+
+# -------------------------
+# Precompiled headers
+# -------------------------
+*.gch
+*.pch
+*.pchi
+
+# -------------------------
+# Debugging and profiling
+# -------------------------
+*.dSYM/
+*.stackdump
+
+# -------------------------
+# IDEs and editors
+# -------------------------
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+.idea/
+*.iml
+
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# -------------------------
+# Xcode
+# -------------------------
+DerivedData/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcuserstate
+
+# -------------------------
+# Package managers
+# -------------------------
+.vcpkg/
+# Uncomment if dependencies are generated locally:
+# vendor/
+
+# Conan
+.conan/
+conanbuild.*
+conaninfo.txt
+graph/
+
+# -------------------------
+# Testing and coverage
+# -------------------------
+coverage/
+*.gcda
+*.gcno
+*.gcov
+lcov.info
+.profraw
+.profdata
+
+# -------------------------
+# Documentation generators
+# -------------------------
+docs/_build/
+Doxygen/
+doxygen/
+
+# -------------------------
+# Logs and temporary files
+# -------------------------
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.cache/
+.cache-*/
+.DS_Store
+Thumbs.db
+
+# -------------------------
+# Environment and local configuration
+# -------------------------
+.env
+.env.*
+!.env.example
+
+# -------------------------
+# Generated files
+# -------------------------
+generated/
+*.generated.*

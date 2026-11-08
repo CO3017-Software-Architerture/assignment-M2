@@ -1,7 +1,8 @@
 #include "..\header\qrgen.hpp"
+#include "..\header\nonce.hpp"
 
 
-const uint8_t KEY[32] = {
+const crypto::Key KEY = {
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
     0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
     0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
@@ -19,14 +20,10 @@ namespace qrgen
         res += std::to_string(int(employee.getAccesslevel()));
         res += std::to_string(std::time(nullptr));
 
-        size_t  length = res.size();
-        std::vector<uint8_t> ciphertext(length);
-        ChaCha20 encrypt;
-        uint8_t nonce[12] = {
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x4a, 0x00, 0x00, 0x00, 0x00
-        };
-        encrypt.init(KEY, nonce, 1);
-        encrypt.crypt(reinterpret_cast<const uint8_t*>(res.data()), ciphertext.data(),length);
-        return std::string(ciphertext.begin(), ciphertext.end());
+        const crypto::Nonce nonce = crypto::generateNonce();
+        const std::string ciphertext =
+            crypto::ChaCha20Cipher::encrypt(res, KEY, nonce);
+        return std::string(
+            reinterpret_cast<const char*>(nonce.data()), nonce.size()) + ciphertext;
     }
 }
