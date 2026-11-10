@@ -96,15 +96,7 @@ TEST      harness: generate_qr() -> handle_scan()   (in-process, no network, no 
 - The nonce cache lives in one verifier's memory, so a second verifier would accept the same code inside the window unless the code is bound to a zone.
 - A relayed or photographed live QR is valid until its window closes.
 
-## 8. Build and Test Order
-
-1. crypto and qr\_payload modules, with unit tests (round-trip encode and decode, sign then verify).
-2. `handle_scan()` with a hand-made key cache.
-3. `generate_qr()` feeding `handle_scan()` in-process, with no network or camera.
-4. Secret seed and keys file loading.
-5. Optional: `qr_refresh_loop()` and a real QR image renderer.
-
-Test cases to cover:
+## 8. Test cases to cover:
 
 | Case | Expected |
 | --- | --- |
