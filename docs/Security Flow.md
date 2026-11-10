@@ -35,6 +35,7 @@ Libraries: [libsodium](https://github.com/jedisct1/libsodium) (Ed25519, SHA-256,
 **Notes:**
 - Domain prefix is prepended to the payload before signing, but not transmitted in the QR. The verifier must have the same prefix hard-coded. This is for blocking usage in other domains, and for future-proofing if the QR format changes.
 - Acceptance window is 30s into the past because of possible clock drift and scan/decode latency.
+- A nonce cache is used to prevent replay attacks. The nonce cache has a TTL because the (time, nonce) pair is both unique and only valid for a short time, preventing the cache from growing unbounded and mitigate cracking attempts.
 - **This is different from the functional reqs; changing the refresh interval to shorter (than specified 60s-120s) is now feasible.**
 
 | Field | Size | Notes |
@@ -48,6 +49,7 @@ Libraries: [libsodium](https://github.com/jedisct1/libsodium) (Ed25519, SHA-256,
 **Notes:**
 - Key ID is first 8 bytes of SHA-256(public key), resulting in 64 bits of entropy, making collisions extremely unlikely.
 - In practice, the verifier clock is synced to NTP.
+- Timestamp is 4 bytes unsigned big-endian, so it will roll over in 2106.
 
 Total is 85 bytes, encoded to text for the QR image.
 
