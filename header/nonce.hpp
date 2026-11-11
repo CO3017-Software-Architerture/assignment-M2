@@ -1,11 +1,14 @@
-#ifndef NONCE_HPP
-#define NONCE_HPP
+#include <array>
+#include <cstdint>
+//#include <openssl/rand.h> 
 
-#include "crypto.hpp"
+// Editors' note: no class required
 
-namespace crypto
+static constexpr std::size_t NONCE_SIZE = 8;
+
+using nonce_t = std::array<std::uint8_t, NONCE_SIZE>;
+
+nonce_t generate_nonce() 
 {
-    Nonce generateNonce();
+    // TODO: Nonce generation logic. Remember to use a SECURE RNG!
 }
-
-#endif // NONCE_HPP

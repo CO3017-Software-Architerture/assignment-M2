@@ -1,14 +1,19 @@
 #ifndef MYLIB_H
 #define MYLIB_H
 
-#include <string>
-#include "employees.hpp"
-#include <chrono>
-#include "crypto.hpp"
+#include "main.hpp"
 
 namespace qrgen
 {
-    std::string generateCode(Employee);
+    struct QRContent 
+    {
+        std::uint8_t version;
+        key_id_t key_ID;
+        std::uint32_t timestamp;
+        nonce_t nonce;
+        
+    };
+    std::string generateCode(/*args*/);
 }
 
 #endif
