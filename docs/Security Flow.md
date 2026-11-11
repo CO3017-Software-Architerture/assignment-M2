@@ -48,7 +48,7 @@ Libraries: [libsodium](https://github.com/jedisct1/libsodium) (Ed25519, SHA-256,
 
 **Notes:**
 - Key ID is first 8 bytes of SHA-256(public key), resulting in 64 bits of entropy, making collisions extremely unlikely.
-- In practice, the verifier clock is synced to NTP.
+- In practice, the verifier clock is synced to NTP. The timestamp on the QR is assumed to be authentic. In a real production system, the generator clock must be verified to be NTP-synced (App Attestation).
 - Timestamp is 4 bytes unsigned big-endian, so it will roll over in 2106.
 
 Total is 85 bytes, encoded to text for the QR image.
