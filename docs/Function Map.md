@@ -50,10 +50,8 @@
 
 | Function | Does | Calls | Called by |
 | --- | --- | --- | --- |
-| `handle_scan(qr_text, direction, now)` | Runs the validation pipeline in section 3C and returns a Decision. Takes `now` as a parameter so tests can fix the time | `NonceCache::purge_expired()`, `decode_qr_text()`, `parse_qr()`, `KeyCache::find()`, `build_signed_message()`, `verify()`, `check_timestamp()`,  `check_permission()`, `NonceCache::seen_or_insert()`, `check_anti_passback()`, `commit_passback()`, `log_event()`, `open_gate()` | scanner input loop, tests |
-| `check_timestamp(ts, now)` | True if within the 30s past, 5s future window | none | `handle_scan()` |
-| `check_permission(entry, zone, now)` | Checks zone and schedule rules | none | `handle_scan()` |
-| `check_anti_passback(key_id, direction)` | Tracks last known inside or outside state | none | `handle_scan()` |
+| `handle_scan(qr_text, direction, now)` | Runs the validation pipeline in section 3C and returns a Decision. Takes `now` as a parameter so tests can fix the time | `NonceCache::purge_expired()`, `decode_qr_text()`, `parse_qr()`, `KeyCache::find()`, `build_signed_message()`, `verify()`, `check_timestamp()`, `NonceCache::seen_or_insert()`, `check_anti_passback()`, `commit_passback()`, `log_event()`, `open_gate()` | scanner input loop, tests |
+| `check_timestamp(ts, now)` | True if within the 30 s past, 5 s future window. **Uses `delta = (int32_t)((uint32_t)now - ts)` and accepts `-5 <= delta <= 30`** | none | `handle_scan()` |
 | `log_event(decision, key_id, direction, now)` | Appends an audit record, including denials | none | `handle_scan()` |
 | `open_gate()` | Simulated relay output (print or GPIO) | none | `handle_scan()` |
 
@@ -121,5 +119,5 @@ TEST      harness: generate_qr() -> handle_scan()   (in-process, no network, no 
 | Timestamp 60 s old, or 60 s in the future | EXPIRED or FUTURE |
 | Same code scanned twice | second scan REPLAY |
 | Unknown key\_id | UNKNOWN\_KEY |
-| Second entry without an exit | PASSBACK |
+| Second entry without an exit, or second exit without an entry | PASSBACK |
 | Truncated or wrong-version input | MALFORMED |

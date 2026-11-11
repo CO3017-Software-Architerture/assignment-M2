@@ -10,6 +10,7 @@ public:
     Barrier() : m_isOpen(false) {}
     ~Barrier() = default;
 
+    // TODO add console logging 
     void OpenGate() { m_isOpen = true; }
     void CloseGate() { m_isOpen = false; }
     bool isOpen() const { return m_isOpen; }

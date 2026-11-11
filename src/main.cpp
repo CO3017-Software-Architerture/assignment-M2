@@ -12,6 +12,14 @@ const uint8_t KEY[32] = {
     0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f
 };
 
+void setupSodium()
+{
+    if (sodium_init() < 0) {
+        std::cerr << "Failed to initialize libsodium!" << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
+}
+
 int tc_01()
 {
     std::cout<<"---TEST CASE 01----\n";
@@ -102,6 +110,7 @@ int tc_02_kiosk_server_pipeline()
 
 int main()
 {
+    setupSodium();
     tc_01();
     tc_02_kiosk_server_pipeline();
     return 0;
