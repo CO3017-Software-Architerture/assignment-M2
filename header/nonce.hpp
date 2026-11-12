@@ -4,7 +4,7 @@
 
 // Editors' note: no class required
 
-static constexpr std::size_t NONCE_SIZE = 8;
+inline constexpr std::size_t NONCE_SIZE = 8;
 
 using nonce_t = std::array<std::uint8_t, NONCE_SIZE>;
 

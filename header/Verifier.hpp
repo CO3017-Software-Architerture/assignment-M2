@@ -1,5 +1,6 @@
 #include "NonceCache.hpp"
 #include "PassbackCache.hpp"
+#include "barrier.hpp"
 #include "main.hpp"
 
 class Verifier
@@ -9,20 +10,14 @@ private:
     PassbackCache& m_passbackCache;
     Barrier& m_barrier;
 public:
-    Verifier(NonceCache& nonceCache, PassbackCache& passbackCache)
-        : m_nonceCache(nonceCache), m_passbackCache(passbackCache) {}
+    Verifier(NonceCache& nonceCache, PassbackCache& passbackCache, Barrier& barrier)
+        : m_nonceCache(nonceCache), m_passbackCache(passbackCache), m_barrier(barrier) {}
     
     ~Verifier() = default;
 
-    void handle_scan()
-    {
-        // TODO: Implement the verification logic for the scanned QR code
-        // m_nonceCache.purge_expired(timestamp);
-    }
+    void handle_scan();
 
-    bool check_timestamp(std::uint32_t ts, clock::time_point now = clock::now())
-    {
-    }
+    bool check_timestamp(std::uint32_t ts, clock::time_point now = clock::now());
 
     bool log_event(Decision decision, key_id_t key_id, Direction direction, clock::time_point timestamp = clock::now())
     {

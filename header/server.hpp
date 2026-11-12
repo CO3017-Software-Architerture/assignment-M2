@@ -14,6 +14,7 @@
 namespace server
 {
     /// Access control evaluation result
+    /// not implemented yet might be deleted next commit
     struct AccessDecision
     {
         bool granted{false};
@@ -29,14 +30,14 @@ namespace server
     // ------------------------------------------------------------------------
 
     /*
-        Read full string from stdin/File if possible
-        Output: string inputed 
+     * Read full string from stdin/File if possible
+     * Output: string inputed 
     */
-    std::string scanImage();
+    [[nodiscard]] std::string scanImage();
 
     /*
-        Input: String from scan image
-        Output: parsed QRContent 
+     * Input: String from scan image
+     * Output: parsed QRContent 
     */
     qrgen::QRContent parseQR(std:: string);
 
@@ -48,12 +49,15 @@ namespace server
 
     /// Evaluate access verification via Verifier::handle_scan() and trigger the turnstile barrier.
     /// Opens the barrier if verified is true; closes/keeps closed otherwise.
+    /// Expected output = output of handle_scan()
     bool decideGateAccess(
         qrgen::QRContent qr,
-        Direction direction
+        Direction direction,
+        Barrier barrier
         );
 
-    
+    /// @brief Main function that gonna loop inf until terminated. Read input->handle_scan->output_decision
+    int main(int argc, char const *argv[]);
 }
 
 #endif // SERVER_HPP
