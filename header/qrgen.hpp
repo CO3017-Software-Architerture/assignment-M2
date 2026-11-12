@@ -8,10 +8,10 @@ namespace qrgen
     struct QRContent 
     {
         std::uint8_t version;
-        key_id_t key_ID;
         std::uint32_t timestamp;
         nonce_t nonce;
-        
+        key_id_t key_ID;
+        std::array<std::uint8_t,crypto_core_ed25519_HASHBYTES> signature;
     };
     std::string generateCode(/*args*/);
 }
