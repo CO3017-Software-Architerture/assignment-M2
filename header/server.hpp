@@ -13,17 +13,6 @@
 
 namespace server
 {
-    /// Access control evaluation result
-    /// not implemented yet might be deleted next commit
-    struct AccessDecision
-    {
-        bool granted{false};
-        std::string message;
-        key_id_t key_id;
-        bool checksumVerified{false};
-        bool databaseVerified{false};
-        bool gateOpened{false};
-    };
 
     // ------------------------------------------------------------------------
     // 1. File & Image I/O
@@ -39,7 +28,7 @@ namespace server
      * Input: String from scan image
      * Output: parsed QRContent 
     */
-    qrgen::QRContent parseQR(std:: string);
+    qrgen::QRContent parseQR(std::string input);
 
 
 

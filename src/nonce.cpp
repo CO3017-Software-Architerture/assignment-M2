@@ -2,7 +2,7 @@
 #include "../header/crypto.hpp"
 
 
-crypto::Nonce crypto::generateNonce()
+nonce_t generate_nonce()
 {
-    return Nonce{0x00,0x01,0x02};
+    return nonce_t();
 }
