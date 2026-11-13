@@ -2,7 +2,7 @@
 #include "main.hpp"
 #include <set>
 
-using clock = std::chrono::steady_clock;
+using Clock = std::chrono::steady_clock;
 
 
 static constexpr std::chrono::seconds NONCE_EXPIRATION_TIME{60};
@@ -20,7 +20,7 @@ public:
     struct nonce_cache_entry
     {
         nonce_key_pair key_pair;
-        clock::time_point timestamp;
+        Clock::time_point timestamp;
     };
 
     using nonce_set_t = std::set<nonce_cache_entry>;
@@ -32,11 +32,11 @@ public:
     NonceCache() = default;
     ~NonceCache() = default;
 
-    void purge_expired(clock::time_point current_time);
+    void purge_expired(Clock::time_point current_time);
 
     bool contains(nonce_key_pair kp) const;
 
-    bool add(nonce_key_pair kp, clock::time_point current_time = clock::now());
+    bool add(nonce_key_pair kp, Clock::time_point current_time = Clock::now());
 
     bool seen_or_insert(nonce_key_pair kp);
     

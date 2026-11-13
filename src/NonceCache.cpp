@@ -1,6 +1,6 @@
 #include "NonceCache.hpp"
 
-void NonceCache::purge_expired(clock::time_point current_time = clock::now())
+void NonceCache::purge_expired(Clock::time_point current_time = Clock::now())
 {
     // TODO: iterate and remove expired nonces from the used_nonces set
 }
@@ -11,7 +11,7 @@ bool NonceCache::contains(nonce_key_pair kp) const
     return false;
 }
 
-bool NonceCache::add(nonce_key_pair kp, clock::time_point current_time = clock::now())
+bool NonceCache::add(nonce_key_pair kp, Clock::time_point current_time = Clock::now())
 {
     // TODO: add the nonce_key_pair to the used_nonces set with the current timestamp
     return false;

@@ -2,6 +2,7 @@
 #define MYLIB_H
 
 #include "main.hpp"
+#include "nonce.hpp"
 
 namespace qrgen
 {
