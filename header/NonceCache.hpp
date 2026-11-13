@@ -32,24 +32,12 @@ public:
     NonceCache() = default;
     ~NonceCache() = default;
 
-    void purge_expired(clock::time_point current_time = clock::now())
-    {
-        // TODO: iterate and remove expired nonces from the used_nonces set
-    }
+    void purge_expired(clock::time_point current_time);
 
-    bool contains(nonce_key_pair kp) const
-    {
-        // TODO: check if the nonce_key_pair exists in the used_nonces set
-    }
+    bool contains(nonce_key_pair kp) const;
 
-    bool add(nonce_key_pair kp, clock::time_point current_time = clock::now())
-    {
-        // TODO: add the nonce_key_pair to the used_nonces set with the current timestamp
-    }
+    bool add(nonce_key_pair kp, clock::time_point current_time = clock::now());
 
-    bool seen_or_insert(nonce_key_pair kp)
-    {
-        // TODO: return true if the key pair has been seen, otherwise insert and return false
-    }
+    bool seen_or_insert(nonce_key_pair kp);
     
 };
