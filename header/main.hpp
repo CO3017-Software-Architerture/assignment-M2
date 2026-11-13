@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <chrono>
 #include <sodium.h>
+#include <array>
 
 using key_id_t = uint64_t;
 
