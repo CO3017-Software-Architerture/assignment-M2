@@ -137,6 +137,12 @@ Thumbs.db
 !.env.example
 
 # -------------------------
+# Local signing keys
+# -------------------------
+/private_seed/*
+!/private_seed/.gitkeep
+
+# -------------------------
 # Generated files
 # -------------------------
 generated/
