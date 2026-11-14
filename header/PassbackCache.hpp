@@ -1,3 +1,5 @@
+#pragma once
+
 #include "main.hpp"
 #include <map>
 
@@ -19,7 +21,7 @@ public:
     PassbackCache() = default;
     ~PassbackCache() = default;
 
-    bool check_anti_passback(key_id_t key_id, Direction direction);
+    bool check_anti_passback(key_id_t key_id, Direction direction) const;
 
     bool commit_passback(key_id_t key_id, Direction direction);
 

@@ -44,14 +44,18 @@ Libraries: [libsodium](https://github.com/jedisct1/libsodium) (Ed25519, SHA-256,
 | key\_id | 8 bytes | First 8 bytes of SHA-256(public key). No PII (employee ID) used. |
 | timestamp | 4 bytes | Unsigned Unix seconds, big-endian |
 | nonce | 8 bytes | Random, (practically) unique per QR code |
-| signature | 64 bytes | Ed25519 over `prefix + key_id + version + timestamp + nonce` |
+| signature | 64 bytes | Ed25519 over the prefix followed by the exact 21 payload bytes in table order: version, key_id, timestamp, nonce |
 
 **Notes:**
-- Key ID is first 8 bytes of SHA-256(public key), resulting in 64 bits of entropy, making collisions extremely unlikely.
+- Key ID is the first 8 bytes of SHA-256(public key), transmitted in digest order and interpreted as a big-endian integer in C++.
 - In practice, the verifier clock is synced to NTP. The timestamp on the QR is assumed to be authentic. In a real production system, the generator clock must be verified to be NTP-synced (App Attestation).
 - Timestamp is 4 bytes unsigned big-endian, so it will roll over in 2106.
 
 Total is 85 bytes, encoded to text for the QR image.
+
+The verifier CLI accepts provisioned public keys as hexadecimal arguments and
+keeps them in memory. A scan is one line in the form `IN <qr_text>` or
+`OUT <qr_text>`. Both directions share one verifier.
 
 ## 3. Workflows
 
