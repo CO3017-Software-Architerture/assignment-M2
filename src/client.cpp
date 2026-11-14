@@ -11,6 +11,10 @@
 
 namespace
 {
+    constexpr std::size_t KEY_ID_OFFSET = 1;
+    constexpr std::size_t TIMESTAMP_OFFSET = KEY_ID_OFFSET + sizeof(key_id_t);
+    constexpr std::size_t NONCE_OFFSET = TIMESTAMP_OFFSET + sizeof(std::uint32_t);
+
     void initialize_sodium()
     {
         if (sodium_init() < 0)
@@ -50,11 +54,8 @@ client::LoadedSecretKey client::load_secret_key(const std::string& path)
     SeedWiper wipe_seed{seed};
     input.read(reinterpret_cast<char*>(seed.data()),
                static_cast<std::streamsize>(seed.size()));
-    if (input.gcount() != static_cast<std::streamsize>(seed.size()))
-        throw std::runtime_error("Secret seed file must contain exactly 32 bytes");
-    if (input.bad())
-        throw std::runtime_error("Failed to read secret seed file: " + path);
-    if (input.peek() != std::char_traits<char>::eof())
+    if (input.gcount() != static_cast<std::streamsize>(seed.size()) ||
+        input.peek() != std::char_traits<char>::eof())
         throw std::runtime_error("Secret seed file must contain exactly 32 bytes");
     if (input.bad())
         throw std::runtime_error("Failed to read secret seed file: " + path);
@@ -93,16 +94,16 @@ client::payload_t client::build_payload(key_id_t key_id, std::uint32_t timestamp
     payload_t payload{};
     payload[0] = qrgen::VERSION;
 
+    // Store multi-byte numbers in big-endian order for the verifier.
     for (std::size_t i = 0; i < sizeof(key_id); ++i)
-        payload[1 + i] = static_cast<std::uint8_t>(key_id >> (8 * (sizeof(key_id) - 1 - i)));
+        payload[KEY_ID_OFFSET + i] =
+            static_cast<std::uint8_t>(key_id >> (8 * (sizeof(key_id) - 1 - i)));
 
-    constexpr std::size_t timestamp_offset = 1 + sizeof(key_id);
     for (std::size_t i = 0; i < sizeof(timestamp); ++i)
-        payload[timestamp_offset + i] =
+        payload[TIMESTAMP_OFFSET + i] =
             static_cast<std::uint8_t>(timestamp >> (8 * (sizeof(timestamp) - 1 - i)));
 
-    constexpr std::size_t nonce_offset = timestamp_offset + sizeof(timestamp);
-    std::copy(nonce.begin(), nonce.end(), payload.begin() + nonce_offset);
+    std::copy(nonce.begin(), nonce.end(), payload.begin() + NONCE_OFFSET);
     return payload;
 }
 

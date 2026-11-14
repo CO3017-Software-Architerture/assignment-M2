@@ -17,8 +17,9 @@ g++ -std=c++17 -Wall -Wextra -pedantic src\seedgen.cpp -lsodium -o build\seedgen
 ```
 
 Seed được lưu ở `private_seed\client.seed`; public key 64 ký tự hex được in ra
-terminal. Dùng public key đó khi khởi động server. Generator không ghi đè seed
-nếu file đã tồn tại.
+terminal. Dùng public key đó khi khởi động server. Nếu seed đã tồn tại,
+generator đọc lại seed cũ và in lại đúng public key tương ứng, không tạo hoặc
+ghi đè seed mới.
 
 Build và chạy client:
 

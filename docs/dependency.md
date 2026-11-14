@@ -2,8 +2,9 @@ The verifier requires a C++17 compiler and the libsodium development package.
 
 The client also requires libsodium. It reads a binary Ed25519 seed containing
 exactly 32 bytes, then prints a new QR text every 20 seconds. `src/seedgen.cpp`
-creates `private_seed/client.seed` and prints the matching public key. The seed
-directory is ignored by Git; do not share or commit the seed.
+creates `private_seed/client.seed` and prints the matching public key. If the
+seed already exists, it derives and prints the same public key without replacing
+the seed. The seed directory is ignored by Git; do not share or commit the seed.
 
 On Windows with MinGW and libsodium available to the compiler and linker:
 
