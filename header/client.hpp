@@ -52,4 +52,9 @@ namespace client
         key_id_t key_id);
 }
 
+namespace Client
+{
+    int main(int argc, char const* argv[]);
+}
+
 #endif // CLIENT_HPP

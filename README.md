@@ -2,6 +2,27 @@
 
 ## 1. Client QR
 
+### CMake build
+
+The CMake build produces two standalone binaries plus a small dispatcher for
+testing both command paths:
+
+```powershell
+cmake -S . -B build
+cmake --build build --parallel
+.\build\client.exe .\private_seed\client.seed
+.\build\server.exe PUBLIC_KEY_HEX
+```
+
+The dispatcher accepts the same commands with an explicit subcommand:
+
+```powershell
+.\build\assignment.exe client .\private_seed\client.seed
+.\build\assignment.exe server PUBLIC_KEY_HEX
+```
+
+`client.exe` and `server.exe` are the two production entry points.
+
 Client in một chuỗi QR dạng Base64url mới mỗi 20 giây. Nó đọc seed Ed25519
 nhị phân đúng 32 byte từ `private_seed\client.seed`. Build và chạy
 `src\seedgen.cpp` một lần để tạo seed cùng public key tương ứng. Seed là bí mật:

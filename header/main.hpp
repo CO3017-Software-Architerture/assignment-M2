@@ -1,6 +1,7 @@
 #ifndef MAIN_H
 #define MAIN_H
 #define SODIUM_STATIC
+// #define CLIENT_NO_MAIN
 
 #include <string>
 #include <vector>

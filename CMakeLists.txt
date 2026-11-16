@@ -8,17 +8,21 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(ASSIGNMENT_SOURCES
-    src/main.cpp
+set(ASSIGNMENT_CORE_SOURCES
+    src/client.cpp
     src/server.cpp
+    src/Verifier.cpp
+    src/nonce.cpp
+    src/NonceCache.cpp
+    src/PassbackCache.cpp
+    src/qrcodegen.cpp
     src/qrgen.cpp
-    src/data2qrlib.cpp
 )
 
-add_executable(assignment ${ASSIGNMENT_SOURCES})
-target_include_directories(assignment PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/header)
+add_library(assignment_core STATIC ${ASSIGNMENT_CORE_SOURCES})
+target_include_directories(assignment_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/header)
 
-target_compile_options(assignment PRIVATE
+target_compile_options(assignment_core PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-pedantic>
     $<$<CXX_COMPILER_ID:MSVC>:/W4>
 )
@@ -30,8 +34,21 @@ FetchContent_Declare(Sodium
 )
 FetchContent_MakeAvailable(Sodium)
 
-target_link_libraries(assignment PRIVATE sodium)
+target_link_libraries(assignment_core PUBLIC sodium)
 
-if(WIN32)
-    set_target_properties(assignment PROPERTIES OUTPUT_NAME "assignment")
-endif()
+add_executable(client src/client_main.cpp)
+add_executable(server src/server_main.cpp)
+add_executable(assignment src/main.cpp)
+
+target_link_libraries(client PRIVATE assignment_core)
+target_link_libraries(server PRIVATE assignment_core)
+target_link_libraries(assignment PRIVATE assignment_core)
+target_sources(client PRIVATE src/client_entry.cpp)
+target_sources(assignment PRIVATE src/client_entry.cpp)
+
+foreach(target client server assignment)
+    target_compile_options(${target} PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-pedantic>
+        $<$<CXX_COMPILER_ID:MSVC>:/W4>
+    )
+endforeach()
