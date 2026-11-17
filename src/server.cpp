@@ -47,6 +47,8 @@ namespace
 
 int server::main(int argc, char const* argv[])
 {
+    // TODO remove the PUBLIC KEY HEX argument take in
+    // load dictionary from a file of any type you want that contain [(employees key_id from qr->key_id ref: docs/Security Flow.md:44; header/qrgen.hpp:29);(employee public hex key id generated from ref:src/seedgen.cpp)]
     if (argc < 2)
     {
         std::cerr << "Usage: " << argv[0] << " PUBLIC_KEY_HEX [PUBLIC_KEY_HEX ...]\n"

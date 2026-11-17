@@ -39,14 +39,17 @@ target_link_libraries(assignment_core PUBLIC sodium)
 add_executable(client src/client_main.cpp)
 add_executable(server src/server_main.cpp)
 add_executable(assignment src/main.cpp)
+add_executable(seedgen src/seedgen.cpp)
 
 target_link_libraries(client PRIVATE assignment_core)
 target_link_libraries(server PRIVATE assignment_core)
 target_link_libraries(assignment PRIVATE assignment_core)
+target_link_libraries(seedgen PRIVATE assignment_core)
 target_sources(client PRIVATE src/client_entry.cpp)
 target_sources(assignment PRIVATE src/client_entry.cpp)
+# target_sources(seedgen PRIVATE src/seedgen.cpp)
 
-foreach(target client server assignment)
+foreach(target client server assignment seedgen)
     target_compile_options(${target} PRIVATE
         $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-pedantic>
         $<$<CXX_COMPILER_ID:MSVC>:/W4>

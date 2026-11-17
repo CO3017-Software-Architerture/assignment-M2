@@ -75,7 +75,8 @@ Decision Verifier::handle_scan(std::string_view text, Direction direction, Clock
         auto decision = Decision::MALFORMED;
         if (qr && (direction == Direction::IN || direction == Direction::OUT))
         {
-            key_id = qr->key_ID;
+            key_id = qr->key_ID; 
+            // TODO check against the dictionary and get the correct public key hex 
             decision = verify_scan(*qr, direction, now, replay_now);
         }
         if (!log_event(decision, key_id, direction, now))
