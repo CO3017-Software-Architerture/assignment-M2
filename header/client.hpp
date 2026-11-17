@@ -47,6 +47,8 @@ namespace client
         const secret_key_t& secret_key,
         key_id_t key_id);
 
+    std::string render_qr_terminal(const std::string& qr_text);
+
     void qr_refresh_loop(
         const secret_key_t& secret_key,
         key_id_t key_id);

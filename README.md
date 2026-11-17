@@ -23,7 +23,8 @@ The dispatcher accepts the same commands with an explicit subcommand:
 
 `client.exe` and `server.exe` are the two production entry points.
 
-Client in một chuỗi QR dạng Base64url mới mỗi 20 giây. Nó đọc seed Ed25519
+Client tạo một chuỗi QR dạng Base64url mới mỗi 20 giây và render thành ma trận
+QR bằng màu nền ANSI ngay trên terminal (cần terminal hỗ trợ ANSI). Nó đọc seed Ed25519
 nhị phân đúng 32 byte từ `private_seed\client.seed`. Chạy
 `src\seedgen.cpp` một lần để tạo seed cùng public key tương ứng. Seed là bí mật:
 không chia sẻ và không commit. `.gitignore` bỏ qua nội dung `private_seed`,
@@ -47,12 +48,13 @@ Build và chạy client:
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 g++ -std=c++17 -Wall -Wextra -pedantic -Iheader `
-    src\client_main.cpp src\client_entry.cpp src\client.cpp src\qrgen.cpp -lsodium -o build\client.exe
+    src\client_main.cpp src\client_entry.cpp src\client.cpp src\qrgen.cpp src\qrcodegen.cpp `
+    -lsodium -o build\client.exe
 .\build\client.exe .\private_seed\client.seed
 ```
 
-`client_main.cpp` là điểm vào của client. `run.bat` chỉ build server. Client hiện in chuỗi
-QR ra terminal, chưa render ảnh QR.
+`client_main.cpp` là điểm vào của client. Client in QR dạng ký tự lên terminal
+và in kèm chuỗi để tiện sao chép vào server. `run.bat` chỉ build server.
 
 ## 2. Định dạng client và server dùng chung
 
@@ -99,9 +101,10 @@ timestamp từ **30 giây trước đến 5 giây sau** thời điểm nhận l�
 
 Thay `<QR_A>`, `<QR_B>`, `<QR_C>` bằng chuỗi thật, bỏ dấu `<` và `>`. Nếu ra `UNKNOWN_KEY`, kiểm tra public key có trong file và server đã khởi động lại sau khi sửa file. Nếu ra `BAD_SIGNATURE`, kiểm tra prefix và thứ tự 21 byte. Nếu ra `MALFORMED`, kiểm tra version và chuỗi Base64url 114 ký tự. Nếu ra `EXPIRED` hoặc `FUTURE`, sinh lại QR và đối chiếu giờ hai bên.
 
-Bốn lượt trên kiểm tra đường đi từ **client sinh chuỗi QR → server xác minh →
-quyết định cổng mô phỏng**. Nếu demo dùng scanner thật, cần bổ sung phần render
-QR và kiểm tra thêm bước quét ảnh.
+Bốn lượt trên kiểm tra đường đi từ **client sinh QR → server xác minh →
+quyết định cổng mô phỏng**. Có thể quét hình QR trên terminal bằng scanner;
+để kiểm thử đầu-cuối, cần xác nhận scanner giải mã ra đúng chuỗi QR trước khi
+gửi chuỗi đó cho server.
 
 Server áp dụng nguyên lý Single Responsibility bằng cách tách xử lý định dạng QR, chống quét lại và quản lý trạng thái vào/ra thành các thành phần riêng. Verifier nhận các thành phần phụ thuộc qua constructor để thuận tiện cho kiểm thử. Ở phạm vi M2, các phụ thuộc vẫn dùng kiểu cụ thể, nên Dependency Inversion mới được áp dụng một phần.
 Xem thêm [Security Flow](docs/Security%20Flow.md) và [hướng dẫn build/test server](docs/dependency.md).
@@ -114,7 +117,7 @@ Build và chạy từng test từ PowerShell tại thư mục gốc:
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 g++ -std=c++17 -Wall -Wextra -pedantic -Iheader `
-    tests\client_generation.cpp src\client.cpp src\qrgen.cpp `
+    tests\client_generation.cpp src\client.cpp src\qrgen.cpp src\qrcodegen.cpp `
     -lsodium -o build\client-test.exe
 .\build\client-test.exe
 
