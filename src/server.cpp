@@ -2,28 +2,48 @@
 #include "Verifier.hpp"
 
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <stdexcept>
 
 namespace
 {
-    Verifier::KeyCache load_keys(int argc, char const* argv[])
+    constexpr auto DEFAULT_KEYS_FILE = "employee_public_keys.txt";
+
+    Verifier::KeyCache load_key_file(const std::string& path)
     {
+        std::ifstream file(path);
+        if (!file)
+            throw std::runtime_error("Cannot open employee public key file: " + path);
+
         Verifier::KeyCache keys;
-        for (int i = 1; i < argc; ++i)
+        std::string line;
+        std::size_t line_number = 0;
+        while (std::getline(file, line))
         {
-            const std::string_view hex{argv[i]};
+            ++line_number;
+            const auto start = line.find_first_not_of(" \t\r");
+            if (start == std::string::npos)
+                continue;
+            const auto end = line.find_last_not_of(" \t\r");
+            const auto hex = std::string_view(line).substr(start, end - start + 1);
             qrgen::PublicKey key{};
             std::size_t size = 0;
             if (hex.size() != key.size() * 2 ||
                 sodium_hex2bin(key.data(), key.size(), hex.data(), hex.size(),
                                nullptr, &size, nullptr) != 0 || size != key.size())
-                throw std::invalid_argument("Expected each public key as 64 hex characters");
+                throw std::runtime_error(path + ":" + std::to_string(line_number) +
+                                         ": expected an Ed25519 public key as 64 hex characters");
 
             const auto key_id = qrgen::derive_key_id(key);
             if (!keys.emplace(key_id, key).second)
-                throw std::invalid_argument("Duplicate public key ID");
+                throw std::runtime_error(path + ":" + std::to_string(line_number) +
+                                         ": duplicate public key or key ID");
         }
+        if (file.bad() || !file.eof())
+            throw std::runtime_error("Cannot read employee public key file: " + path);
+        if (keys.empty())
+            throw std::runtime_error("Employee public key file is empty: " + path);
         return keys;
     }
 
@@ -47,11 +67,10 @@ namespace
 
 int server::main(int argc, char const* argv[])
 {
-    // TODO remove the PUBLIC KEY HEX argument take in
-    // load dictionary from a file of any type you want that contain [(employees key_id from qr->key_id ref: docs/Security Flow.md:44; header/qrgen.hpp:29);(employee public hex key id generated from ref:src/seedgen.cpp)]
-    if (argc < 2)
+    if (argc > 2)
     {
-        std::cerr << "Usage: " << argv[0] << " PUBLIC_KEY_HEX [PUBLIC_KEY_HEX ...]\n"
+        std::cerr << "Usage: " << argv[0] << " [EMPLOYEE_PUBLIC_KEYS_FILE]\n"
+                  << "Default: " << DEFAULT_KEYS_FILE << '\n'
                   << "Enter IN <qr_text> or OUT <qr_text> on stdin.\n";
         return EXIT_FAILURE;
     }
@@ -63,7 +82,7 @@ int server::main(int argc, char const* argv[])
 
     try
     {
-        const auto keys = load_keys(argc, argv);
+        const auto keys = load_key_file(argc == 2 ? argv[1] : DEFAULT_KEYS_FILE);
         NonceCache nonceCache;
         PassbackCache passbackCache;
         Barrier barrier;

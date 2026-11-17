@@ -4,27 +4,27 @@
 
 ### CMake build
 
-The CMake build produces two standalone binaries plus a small dispatcher for
-testing both command paths:
+The CMake build produces a client, a server, a seed generator and a dispatcher:
 
 ```powershell
 cmake -S . -B build
 cmake --build build --parallel
+.\build\seedgen.exe
 .\build\client.exe .\private_seed\client.seed
-.\build\server.exe PUBLIC_KEY_HEX
+.\build\server.exe
 ```
 
 The dispatcher accepts the same commands with an explicit subcommand:
 
 ```powershell
 .\build\assignment.exe client .\private_seed\client.seed
-.\build\assignment.exe server PUBLIC_KEY_HEX
+.\build\assignment.exe server
 ```
 
 `client.exe` and `server.exe` are the two production entry points.
 
 Client in một chuỗi QR dạng Base64url mới mỗi 20 giây. Nó đọc seed Ed25519
-nhị phân đúng 32 byte từ `private_seed\client.seed`. Build và chạy
+nhị phân đúng 32 byte từ `private_seed\client.seed`. Chạy
 `src\seedgen.cpp` một lần để tạo seed cùng public key tương ứng. Seed là bí mật:
 không chia sẻ và không commit. `.gitignore` bỏ qua nội dung `private_seed`,
 ngoại trừ file giữ chỗ `.gitkeep`.
@@ -38,7 +38,7 @@ g++ -std=c++17 -Wall -Wextra -pedantic src\seedgen.cpp -lsodium -o build\seedgen
 ```
 
 Seed được lưu ở `private_seed\client.seed`; public key 64 ký tự hex được in ra
-terminal. Dùng public key đó khi khởi động server. Nếu seed đã tồn tại,
+terminal. Thêm public key đó vào `employee_public_keys.txt` theo hướng dẫn ở mục 3. Nếu seed đã tồn tại,
 generator đọc lại seed cũ và in lại đúng public key tương ứng, không tạo hoặc
 ghi đè seed mới.
 
@@ -47,11 +47,11 @@ Build và chạy client:
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 g++ -std=c++17 -Wall -Wextra -pedantic -Iheader `
-    src\client.cpp src\qrgen.cpp -lsodium -o build\client.exe
+    src\client_main.cpp src\client_entry.cpp src\client.cpp src\qrgen.cpp -lsodium -o build\client.exe
 .\build\client.exe .\private_seed\client.seed
 ```
 
-`client.cpp` có `main()` riêng; `run.bat` chỉ build server. Client hiện in chuỗi
+`client_main.cpp` là điểm vào của client. `run.bat` chỉ build server. Client hiện in chuỗi
 QR ra terminal, chưa render ảnh QR.
 
 ## 2. Định dạng client và server dùng chung
@@ -67,22 +67,24 @@ Em ký bằng **Ed25519** trên chuỗi byte `corp-qr-access-v1` nối với **�
 
 ## 3. Chạy server
 
-Server cần trình biên dịch C++17 và thư viện phát triển libsodium. Mở terminal ở thư mục `assignment-M2`. Anh đã chạy trên Ubuntu WSL. Nếu em dùng Windows với MinGW, dùng `run.bat PUBLIC_KEY_HEX`.
+Tạo file văn bản `employee_public_keys.txt` trong thư mục `assignment-M2`. Mỗi dòng chứa một **public key Ed25519 gồm 64 ký tự hex** do `seedgen` in ra. Server tự tính `key_id` từ public key và nạp cả danh sách khi khởi động. Sau khi sửa danh sách, khởi động lại server.
+
+Mở terminal ở thư mục `assignment-M2`. Nếu đã build bằng CMake, chạy server theo mục 1. Trên Windows với MinGW và libsodium, có thể dùng `run.bat`. Trên Ubuntu/WSL với g++ và libsodium, chạy:
 
 ```sh
 mkdir -p build
 g++ -std=c++17 -Wall -Wextra -pedantic -Iheader \
-    src/main.cpp src/server.cpp src/Verifier.cpp src/qrgen.cpp \
+    src/server_main.cpp src/server.cpp src/Verifier.cpp src/qrgen.cpp \
     src/NonceCache.cpp src/PassbackCache.cpp -lsodium -o build/server
-./build/server PUBLIC_KEY_HEX
+./build/server
 ```
 
-Thay `PUBLIC_KEY_HEX` bằng **64 ký tự hex** của public key Ed25519 do client dùng. Khi server đang chờ nhập, em nhập mỗi lượt quét trên một dòng. Server trả mã quyết định trên terminal.
+Tên file mặc định được tính từ thư mục đang chạy server. Để dùng file khác, truyền đường dẫn, ví dụ `./build/server config/keys.txt`. Khi server đang chờ nhập, em nhập mỗi lượt quét trên một dòng.
 
 ## 4. Test với QR do client sinh
 
 Chạy server trong một terminal và client trong terminal khác. Client phải dùng
-seed tương ứng với public key truyền cho server. Sao chép một chuỗi QR client
+seed tương ứng với một public key trong danh sách đã nạp. Sao chép một chuỗi QR client
 vừa in vào terminal server theo dạng `IN <QR>` hoặc `OUT <QR>`. Server chấp nhận
 timestamp từ **30 giây trước đến 5 giây sau** thời điểm nhận lượt quét.
 
@@ -93,7 +95,9 @@ timestamp từ **30 giây trước đến 5 giây sau** thời điểm nhận l�
 | 3 | `IN <QR_B>` — sinh QR mới bằng cùng cặp khóa | `PASSBACK` |
 | 4 | `OUT <QR_C>` — sinh thêm QR mới bằng cùng cặp khóa | `ALLOW` |
 
-Thay `<QR_A>`, `<QR_B>`, `<QR_C>` bằng chuỗi thật, bỏ dấu `<` và `>`. Nếu ra `UNKNOWN_KEY`, kiểm tra public key truyền vào và cách tính `key_id`. Nếu ra `BAD_SIGNATURE`, kiểm tra prefix và thứ tự 21 byte. Nếu ra `MALFORMED`, kiểm tra version và chuỗi Base64url 114 ký tự. Nếu ra `EXPIRED` hoặc `FUTURE`, sinh lại QR và đối chiếu giờ hai bên.
+Để test nhiều client, chạy `seedgen` từ hai thư mục khác nhau để mỗi client có file `private_seed/client.seed` riêng. Chép hai public key vào hai dòng trong file của server. Trong cùng một phiên server mới, quét `IN` bằng một QR mới từ mỗi client. Cả hai lượt phải ra `ALLOW`.
+
+Thay `<QR_A>`, `<QR_B>`, `<QR_C>` bằng chuỗi thật, bỏ dấu `<` và `>`. Nếu ra `UNKNOWN_KEY`, kiểm tra public key có trong file và server đã khởi động lại sau khi sửa file. Nếu ra `BAD_SIGNATURE`, kiểm tra prefix và thứ tự 21 byte. Nếu ra `MALFORMED`, kiểm tra version và chuỗi Base64url 114 ký tự. Nếu ra `EXPIRED` hoặc `FUTURE`, sinh lại QR và đối chiếu giờ hai bên.
 
 Bốn lượt trên kiểm tra đường đi từ **client sinh chuỗi QR → server xác minh →
 quyết định cổng mô phỏng**. Nếu demo dùng scanner thật, cần bổ sung phần render
@@ -109,7 +113,7 @@ Build và chạy từng test từ PowerShell tại thư mục gốc:
 
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
-g++ -std=c++17 -Wall -Wextra -pedantic -DCLIENT_NO_MAIN -Iheader `
+g++ -std=c++17 -Wall -Wextra -pedantic -Iheader `
     tests\client_generation.cpp src\client.cpp src\qrgen.cpp `
     -lsodium -o build\client-test.exe
 .\build\client-test.exe

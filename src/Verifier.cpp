@@ -42,6 +42,7 @@ std::string_view decision_name(Decision decision)
 Decision Verifier::verify_scan(const qrgen::QRContent& qr, Direction direction, Clock::time_point now,
                                NonceCache::Clock::time_point replay_now)
 {
+    // The QR identifies a key from the locally provisioned allowlist.
     const auto key = m_keys.find(qr.key_ID);
     if (key == m_keys.end())
         return Decision::UNKNOWN_KEY;
@@ -75,8 +76,7 @@ Decision Verifier::handle_scan(std::string_view text, Direction direction, Clock
         auto decision = Decision::MALFORMED;
         if (qr && (direction == Direction::IN || direction == Direction::OUT))
         {
-            key_id = qr->key_ID; 
-            // TODO check against the dictionary and get the correct public key hex 
+            key_id = qr->key_ID;
             decision = verify_scan(*qr, direction, now, replay_now);
         }
         if (!log_event(decision, key_id, direction, now))

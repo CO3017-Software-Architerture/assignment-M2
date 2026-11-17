@@ -3,6 +3,9 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <limits>
 #include <sstream>
@@ -39,6 +42,35 @@ namespace
         sodium_bin2base64(text.data(), text.size(), token.data(), token.size(),
                           sodium_base64_VARIANT_URLSAFE_NO_PADDING);
         return text.data();
+    }
+
+    std::string public_key_hex(const qrgen::PublicKey& key)
+    {
+        std::array<char, crypto_sign_PUBLICKEYBYTES * 2 + 1> hex{};
+        return sodium_bin2hex(hex.data(), hex.size(), key.data(), key.size());
+    }
+
+    // Restore the console after exercising the same entry point as the executable.
+    std::pair<int, std::string> run_server(const std::filesystem::path& keys, const std::string& scans)
+    {
+        const auto path = keys.string();
+        const char* args[] = {"server", path.c_str()};
+        std::istringstream input(scans);
+        std::ostringstream output;
+        auto* stdin_buffer = std::cin.rdbuf(input.rdbuf());
+        auto* stdout_buffer = std::cout.rdbuf(output.rdbuf());
+        const auto exit_code = server::main(2, args);
+        std::cin.rdbuf(stdin_buffer);
+        std::cout.rdbuf(stdout_buffer);
+        return {exit_code, output.str()};
+    }
+
+    void write_key_file(const std::filesystem::path& path, const std::string& content)
+    {
+        std::ofstream file(path, std::ios::binary);
+        file << content;
+        file.close();
+        assert(file);
     }
 }
 
@@ -110,23 +142,43 @@ int main()
     assert(passback.reset_passback(key_id));
     assert(passback.check_anti_passback(key_id, Direction::IN));
 
-    // Exercise the CLI with its actual public-key argument and scanner input.
+    // Verify both employees from one key file and reject a third, unlisted key.
     const auto current_seconds = std::chrono::duration_cast<std::chrono::seconds>(
         Verifier::Clock::now().time_since_epoch()).count();
-    const auto cli_token = token(static_cast<std::uint32_t>(current_seconds), 9);
-    std::array<char, 65> key_hex{};
-    sodium_bin2hex(key_hex.data(), key_hex.size(), public_key.data(), public_key.size());
-    const char* args[] = {"server", key_hex.data()};
-    std::istringstream input("IN " + cli_token + std::string(200, 'A') +
-                             "\nIN " + cli_token + "\r\nOUT " + cli_token);
-    std::ostringstream output;
-    auto* stdin_buffer = std::cin.rdbuf(input.rdbuf());
-    auto* stdout_buffer = std::cout.rdbuf(output.rdbuf());
-    const auto exit_code = server::main(2, args);
-    std::cin.rdbuf(stdin_buffer);
-    std::cout.rdbuf(stdout_buffer);
-    assert(exit_code == 0);
-    assert(output.str() == "MALFORMED\nALLOW\nREPLAY\n");
+    const auto current_timestamp = static_cast<std::uint32_t>(current_seconds);
+    const auto cli_token = token(current_timestamp, 9);
+    const auto other_token = encode(make_token(other_key, other_secret, current_timestamp, 9));
+    qrgen::PublicKey unknown_key{};
+    SecretKey unknown_secret{};
+    assert(crypto_sign_keypair(unknown_key.data(), unknown_secret.data()) == 0);
+    const auto unknown_token = encode(make_token(unknown_key, unknown_secret, current_timestamp, 9));
+    sodium_memzero(unknown_secret.data(), unknown_secret.size());
+
+    const auto temp_dir = std::filesystem::temp_directory_path() /
+                          ("m2-verifier-" + std::to_string(randombytes_random()));
+    const auto created = std::filesystem::create_directory(temp_dir);
+    assert(created);
+    const auto key_file = temp_dir / "employee_public_keys.txt";
+    const auto key_hex = public_key_hex(public_key);
+    assert(run_server(key_file, "").first == EXIT_FAILURE);
+
+    write_key_file(key_file, key_hex + "\r\n\r\n" + public_key_hex(other_key));
+    const auto result = run_server(key_file, "IN " + cli_token + std::string(200, 'A') +
+                                            "\nIN " + cli_token + "\r\nIN " + other_token +
+                                            "\nOUT " + cli_token + "\nIN " + unknown_token);
+    assert(result.first == EXIT_SUCCESS);
+    assert(result.second == "MALFORMED\nALLOW\nALLOW\nREPLAY\nUNKNOWN_KEY\n");
+
+    for (const auto& invalid : {std::string{" \r\n\t\n"}, key_hex + "\nbad\n",
+                                key_hex + '\n' + std::string(64, 'z') + '\n',
+                                key_hex + '\n' + key_hex + '\n'})
+    {
+        write_key_file(key_file, invalid);
+        const auto invalid_result = run_server(key_file, "IN " + cli_token);
+        assert(invalid_result.first == EXIT_FAILURE && invalid_result.second.empty());
+    }
+    std::filesystem::remove(key_file);
+    std::filesystem::remove(temp_dir);
 
     sodium_memzero(secret_key.data(), secret_key.size());
     sodium_memzero(other_secret.data(), other_secret.size());
