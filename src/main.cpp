@@ -1,5 +1,5 @@
-#include "server.hpp"
-#include "client.hpp"
+#include "server_entry.hpp"
+#include "client_entry.hpp"
 
 #include <iostream>
 #include <string>
@@ -13,7 +13,7 @@ int main(int argc, char const* argv[])
     }
 
     if (std::string{argv[1]} == "server")
-        return server::main(argc - 1, argv + 1);
+        return Server::main(argc - 1, argv + 1);
     if (std::string{argv[1]} == "client")
         return Client::main(argc - 1, argv + 1);
 

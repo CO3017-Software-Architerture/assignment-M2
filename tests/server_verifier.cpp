@@ -1,5 +1,6 @@
 #include "Verifier.hpp"
 #include "server.hpp"
+#include "server_entry.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -17,22 +18,24 @@ namespace
 
     Bytes make_token(const qrgen::PublicKey& public_key, const SecretKey& secret_key,
                      std::uint32_t timestamp, std::uint8_t nonce,
-                     std::uint8_t version = 1)
+                     std::uint8_t version = qrgen::PROTOCOL_VERSION)
     {
         Bytes token{};
         std::array<std::uint8_t, crypto_hash_sha256_BYTES> digest{};
-        assert(crypto_hash_sha256(digest.data(), public_key.data(), public_key.size()) == 0);
+        if (crypto_hash_sha256(digest.data(), public_key.data(), public_key.size()) != 0)
+            std::abort();
         token[0] = version;
         std::copy_n(digest.begin(), 8, token.begin() + 1);
         for (std::size_t i = 0; i < 4; ++i)
             token[9 + i] = static_cast<std::uint8_t>(timestamp >> (8 * (3 - i)));
         token[13] = nonce;
 
-        const std::string prefix = "corp-qr-access-v1";
+        const auto prefix = qrgen::DOMAIN_PREFIX;
         std::vector<std::uint8_t> message(prefix.begin(), prefix.end());
         message.insert(message.end(), token.begin(), token.begin() + 21);
-        assert(crypto_sign_detached(token.data() + 21, nullptr, message.data(),
-                                    message.size(), secret_key.data()) == 0);
+        if (crypto_sign_detached(token.data() + 21, nullptr, message.data(),
+                                 message.size(), secret_key.data()) != 0)
+            std::abort();
         return token;
     }
 
@@ -59,10 +62,10 @@ namespace
         std::ostringstream output;
         auto* stdin_buffer = std::cin.rdbuf(input.rdbuf());
         auto* stdout_buffer = std::cout.rdbuf(output.rdbuf());
-        const auto exit_code = server::main(2, args);
+        const auto exit_code = Server::main(2, args);
         std::cin.rdbuf(stdin_buffer);
         std::cout.rdbuf(stdout_buffer);
-        return {exit_code, output.str()};
+        return std::pair<int, std::string>{exit_code, output.str()};
     }
 
     void write_key_file(const std::filesystem::path& path, const std::string& content)
@@ -97,6 +100,8 @@ int main()
     const auto scan = [&](std::string_view text, Direction direction, Decision expected)
     {
         const auto actual = verifier.handle_scan(text, direction, now, monotonic_now);
+        (void)actual;
+        (void)expected;
         assert(actual == expected);
         assert(barrier.isOpen() == (expected == Decision::ALLOW));
     };
@@ -135,12 +140,64 @@ int main()
            Decision::ALLOW);
 
     const NonceCache::nonce_key_pair cache_entry{key_id, nonce_t{1}};
+    (void)cache_entry;
     nonces.purge_expired(monotonic_now + std::chrono::seconds{59});
     assert(nonces.contains(cache_entry));
     nonces.purge_expired(monotonic_now + std::chrono::seconds{60});
     assert(!nonces.contains(cache_entry));
     assert(passback.reset_passback(key_id));
     assert(passback.check_anti_passback(key_id, Direction::IN));
+
+    // Configurable timestamp limits and nonce lifetime.
+    assert(Verifier::check_timestamp(now_seconds - 10, now,
+                                     std::chrono::seconds{10},
+                                     std::chrono::seconds{2}) == Decision::ALLOW);
+    assert(Verifier::check_timestamp(now_seconds - 11, now,
+                                     std::chrono::seconds{10},
+                                     std::chrono::seconds{2}) == Decision::EXPIRED);
+    assert(Verifier::check_timestamp(now_seconds + 3, now,
+                                     std::chrono::seconds{10},
+                                     std::chrono::seconds{2}) == Decision::ALLOW);
+    assert(Verifier::check_timestamp(now_seconds + 6, now,
+                                     std::chrono::seconds{10},
+                                     std::chrono::seconds{5}) == Decision::FUTURE);
+    NonceCache short_nonces{std::chrono::seconds{10}};
+    const NonceCache::nonce_key_pair short_entry{key_id, nonce_t{99}};
+    (void)short_entry;
+    assert(!short_nonces.seen_or_insert(short_entry, monotonic_now));
+    short_nonces.purge_expired(monotonic_now + std::chrono::seconds{9});
+    assert(short_nonces.contains(short_entry));
+    short_nonces.purge_expired(monotonic_now + std::chrono::seconds{10});
+    assert(!short_nonces.contains(short_entry));
+
+    // Soft anti-passback mode permits repeated directions and extension rules can deny scans.
+    NonceCache soft_nonces;
+    PassbackCache soft_passback;
+    Barrier soft_barrier;
+    Verifier soft_verifier(soft_nonces, soft_passback, soft_barrier, keys,
+                           VerifierConfig{std::chrono::seconds{30},
+                                          std::chrono::seconds{5},
+                                          AntiPassbackMode::SOFT});
+    soft_verifier.add_rule([](const qrgen::QRContent&, Direction,
+                              Verifier::Clock::time_point,
+                              NonceCache::Clock::time_point) {
+        return std::optional<Decision>{};
+    });
+    assert(soft_verifier.handle_scan(token(now_seconds, 90), Direction::IN,
+                                     now, monotonic_now) == Decision::ALLOW);
+    assert(soft_verifier.handle_scan(token(now_seconds, 91), Direction::IN,
+                                     now, monotonic_now) == Decision::ALLOW);
+    soft_verifier.add_rule([](const qrgen::QRContent&, Direction,
+                              Verifier::Clock::time_point,
+                              NonceCache::Clock::time_point) {
+        return std::optional<Decision>{Decision::INTERNAL_ERROR};
+    });
+    assert(soft_verifier.handle_scan(token(now_seconds, 92), Direction::OUT,
+                                     now, monotonic_now) == Decision::INTERNAL_ERROR);
+
+    assert(server::parse_direction("IN") == Direction::IN);
+    assert(server::parse_direction("EXIT") == Direction::OUT);
+    assert(!server::parse_direction("SIDE").has_value());
 
     // Verify both employees from one key file and reject a third, unlisted key.
     const auto current_seconds = std::chrono::duration_cast<std::chrono::seconds>(
@@ -157,6 +214,7 @@ int main()
     const auto temp_dir = std::filesystem::temp_directory_path() /
                           ("m2-verifier-" + std::to_string(randombytes_random()));
     const auto created = std::filesystem::create_directory(temp_dir);
+    (void)created;
     assert(created);
     const auto key_file = temp_dir / "employee_public_keys.txt";
     const auto key_hex = public_key_hex(public_key);
