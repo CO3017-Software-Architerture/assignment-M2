@@ -1,3 +1,24 @@
+## 0. 1 click demo for window
+
+run 
+```powershell
+.\demo.bat
+```
+[vi]
+script sẽ check nếu có cmake nếu không sẽ build bằng build.bat
+
+Tự động tạo (5) client private key seed và đăng ký vào danh sách public key cho server
+
+tạo 5 tiến trình client với key khác nhau và 1 server 
+
+[eng]
+it will check for cmake and build by cmake default fallback is build.bat
+
+auto generate client private seed and register public key for server
+
+spawn 5 client with different seed as 5 different employees and 1 server as kiosk 
+
+
 ## 1. Client QR
 
 ### CMake build
