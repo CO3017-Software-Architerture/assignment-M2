@@ -27,7 +27,7 @@ if exist employee_public_keys.txt (
 )
 
 echo Generating client seeds and collecting public keys...
-for /L %%i in (1,1,5) do (
+for /L %%i in (1,1,%1) do (
     echo Running build\seedgen.exe private_seed\client%%i.seed
     build\seedgen.exe private_seed\client%%i.seed >> employee_public_keys.txt
     if %errorlevel% neq 0 (
@@ -39,7 +39,7 @@ for /L %%i in (1,1,5) do (
 echo Public keys appended to employee_public_keys.txt
 
 echo Spawning client processes...
-for /L %%i in (1,1,5) do (
+for /L %%i in (1,1,%1) do (
     start "Client %%i" cmd.exe /k "mode con:cols=120 lines=40 && build\client.exe private_seed\client%%i.seed"
 )
 
