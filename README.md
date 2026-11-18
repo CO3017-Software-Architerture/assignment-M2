@@ -1,5 +1,3 @@
-
-
 ## 1. Client QR
 
 ### CMake build
@@ -23,7 +21,8 @@ The dispatcher accepts the same commands with an explicit subcommand:
 
 `client.exe` and `server.exe` are the two production entry points.
 
-Client in một chuỗi QR dạng Base64url mới mỗi 20 giây. Nó đọc seed Ed25519
+Client tạo một chuỗi QR dạng Base64url mới mỗi 20 giây và render thành ma trận
+QR bằng màu nền ANSI ngay trên terminal (cần terminal hỗ trợ ANSI). Nó đọc seed Ed25519
 nhị phân đúng 32 byte từ `private_seed\client.seed`. Chạy
 `src\seedgen.cpp` một lần để tạo seed cùng public key tương ứng. Seed là bí mật:
 không chia sẻ và không commit. `.gitignore` bỏ qua nội dung `private_seed`,
@@ -47,21 +46,22 @@ Build và chạy client:
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 g++ -std=c++17 -Wall -Wextra -pedantic -Iheader `
-    src\client_main.cpp src\client_entry.cpp src\client.cpp src\qrgen.cpp -lsodium -o build\client.exe
+    src\client_main.cpp src\client_entry.cpp src\client.cpp src\qrgen.cpp src\qrcodegen.cpp `
+    -lsodium -o build\client.exe
 .\build\client.exe .\private_seed\client.seed
 ```
 
-`client_main.cpp` là điểm vào của client. `run.bat` chỉ build server. Client hiện in chuỗi
-QR ra terminal, chưa render ảnh QR.
+`client_main.cpp` là điểm vào của client. Client in QR dạng ký tự lên terminal
+và in kèm chuỗi để tiện sao chép vào server. `run.bat` chỉ build server.
 
 ## 2. Định dạng client và server dùng chung
 
-| Thứ tự | Trường | Số byte | Cách ghi |
-| --- | --- | --- | --- |
-| 1 | `version` | 1 | `0x01` |
-| 2 | `key_id` | 8 | 8 byte đầu của SHA-256(public key), giữ nguyên thứ tự byte của digest |
-| 3 | `timestamp` | 4 | Unix time tính bằng giây, `uint32_t` big-endian |
-| 4 | `nonce` | 8 | Sinh mới mỗi lần tạo QR |
+| Thứ tự | Trường      | Số byte | Cách ghi                                                              |
+| ------ | ----------- | ------- | --------------------------------------------------------------------- |
+| 1      | `version`   | 1       | `0x01`                                                                |
+| 2      | `key_id`    | 8       | 8 byte đầu của SHA-256(public key), giữ nguyên thứ tự byte của digest |
+| 3      | `timestamp` | 4       | Unix time tính bằng giây, `uint32_t` big-endian                       |
+| 4      | `nonce`     | 8       | Sinh mới mỗi lần tạo QR                                               |
 
 Em ký bằng **Ed25519** trên chuỗi byte `corp-qr-access-v1` nối với **đúng 21 byte** trong bảng. Prefix là chuỗi ASCII và bỏ ký tự kết thúc `\0`. Sau đó nối `payload (21 byte) + signature (64 byte)` và mã hóa **Base64url không padding**. Chuỗi cuối cùng dài **114 ký tự**. Em có thể dùng lại `qrgen::derive_key_id()` và `qrgen::build_signed_message()` trong [qrgen.hpp](header/qrgen.hpp) để hai bên dùng cùng quy ước.
 
@@ -88,20 +88,21 @@ seed tương ứng với một public key trong danh sách đã nạp. Sao chép
 vừa in vào terminal server theo dạng `IN <QR>` hoặc `OUT <QR>`. Server chấp nhận
 timestamp từ **30 giây trước đến 5 giây sau** thời điểm nhận lượt quét.
 
-| Lượt | Dòng nhập vào server | Kết quả mong đợi |
-| --- | --- | --- |
-| 1 | `IN <QR_A>` — QR mới từ client | `ALLOW` |
-| 2 | `IN <QR_A>` — dán lại đúng chuỗi của lượt 1 ngay sau đó | `REPLAY` |
-| 3 | `IN <QR_B>` — sinh QR mới bằng cùng cặp khóa | `PASSBACK` |
-| 4 | `OUT <QR_C>` — sinh thêm QR mới bằng cùng cặp khóa | `ALLOW` |
+| Lượt | Dòng nhập vào server                                    | Kết quả mong đợi |
+| ---- | ------------------------------------------------------- | ---------------- |
+| 1    | `IN <QR_A>` — QR mới từ client                          | `ALLOW`          |
+| 2    | `IN <QR_A>` — dán lại đúng chuỗi của lượt 1 ngay sau đó | `REPLAY`         |
+| 3    | `IN <QR_B>` — sinh QR mới bằng cùng cặp khóa            | `PASSBACK`       |
+| 4    | `OUT <QR_C>` — sinh thêm QR mới bằng cùng cặp khóa      | `ALLOW`          |
 
 Để test nhiều client, chạy `seedgen` từ hai thư mục khác nhau để mỗi client có file `private_seed/client.seed` riêng. Chép hai public key vào hai dòng trong file của server. Trong cùng một phiên server mới, quét `IN` bằng một QR mới từ mỗi client. Cả hai lượt phải ra `ALLOW`.
 
 Thay `<QR_A>`, `<QR_B>`, `<QR_C>` bằng chuỗi thật, bỏ dấu `<` và `>`. Nếu ra `UNKNOWN_KEY`, kiểm tra public key có trong file và server đã khởi động lại sau khi sửa file. Nếu ra `BAD_SIGNATURE`, kiểm tra prefix và thứ tự 21 byte. Nếu ra `MALFORMED`, kiểm tra version và chuỗi Base64url 114 ký tự. Nếu ra `EXPIRED` hoặc `FUTURE`, sinh lại QR và đối chiếu giờ hai bên.
 
-Bốn lượt trên kiểm tra đường đi từ **client sinh chuỗi QR → server xác minh →
-quyết định cổng mô phỏng**. Nếu demo dùng scanner thật, cần bổ sung phần render
-QR và kiểm tra thêm bước quét ảnh.
+Bốn lượt trên kiểm tra đường đi từ **client sinh QR → server xác minh →
+quyết định cổng mô phỏng**. Có thể quét hình QR trên terminal bằng scanner;
+để kiểm thử đầu-cuối, cần xác nhận scanner giải mã ra đúng chuỗi QR trước khi
+gửi chuỗi đó cho server.
 
 Server áp dụng nguyên lý Single Responsibility bằng cách tách xử lý định dạng QR, chống quét lại và quản lý trạng thái vào/ra thành các thành phần riêng. Verifier nhận các thành phần phụ thuộc qua constructor để thuận tiện cho kiểm thử. Ở phạm vi M2, các phụ thuộc vẫn dùng kiểu cụ thể, nên Dependency Inversion mới được áp dụng một phần.
 Xem thêm [Security Flow](docs/Security%20Flow.md) và [hướng dẫn build/test server](docs/dependency.md).
@@ -114,7 +115,7 @@ Build và chạy từng test từ PowerShell tại thư mục gốc:
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 g++ -std=c++17 -Wall -Wextra -pedantic -Iheader `
-    tests\client_generation.cpp src\client.cpp src\qrgen.cpp `
+    tests\client_generation.cpp src\client.cpp src\qrgen.cpp src\qrcodegen.cpp `
     -lsodium -o build\client-test.exe
 .\build\client-test.exe
 
@@ -123,3 +124,36 @@ g++ -std=c++17 -Wall -Wextra -pedantic -Iheader `
     src\NonceCache.cpp src\PassbackCache.cpp -lsodium -o build\verifier-test.exe
 .\build\verifier-test.exe
 ```
+
+### Test tải verifier (600 và 800 nhân viên)
+
+Test này sinh khóa và QR tạm trong bộ nhớ, sau đó đưa toàn bộ lượt quét hợp lệ
+vào verifier tuần tự như vòng lặp server hiện tại. Nó báo thời gian xử lý burst,
+throughput và độ trễ xử lý p50/p95/p99. Đây là benchmark trong tiến trình:
+nó không đo đọc stdin, nạp file khóa, I/O log thực, camera, kiosk, phần cứng,
+database hoặc API HR/Payroll.
+
+```powershell
+g++ -std=c++17 -Wall -Wextra -pedantic -Iheader `
+    tests\peak_load.cpp src\client.cpp src\Verifier.cpp src\qrgen.cpp `
+    src\qrcodegen.cpp src\NonceCache.cpp src\PassbackCache.cpp `
+    -lsodium -o build\peak-load.exe
+.\build\peak-load.exe
+```
+
+#### Output
+
+Mỗi kịch bản in một nhóm chỉ số:
+
+| Output                                        | Ý nghĩa                                                                                                                                                  |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `N employees, all scans ready at burst start` | Số QR đã chuẩn bị sẵn trước khi bắt đầu đo. Đây là một đợt dồn vào hàng đợi; verifier vẫn xử lý tuần tự.                                                 |
+| `Result: X/N ALLOW`                           | Số QR được verifier chấp nhận trên tổng số QR. Test thất bại nếu một QR hợp lệ không trả về `ALLOW`.                                                     |
+| `Burst processing time`                       | Tổng thời gian gọi verifier cho toàn bộ đợt, tính bằng giây. Không tính thời gian tạo khóa và QR.                                                        |
+| `Throughput`                                  | Số lượt xử lý trung bình mỗi giây, tính bằng `N / Burst processing time` (scans/s).                                                                      |
+| `Handler latency p50/p95/p99`                 | Độ trễ của một lần gọi verifier, tính bằng micro giây (`us`). Các giá trị lần lượt là phân vị 50%, 95% và 99% sau khi sắp xếp thời gian xử lý từng lượt. |
+
+Ví dụ, `p95 = 60 us` nghĩa là 95% lượt trong đợt được verifier xử lý trong
+60 micro giây hoặc nhanh hơn; 5% còn lại lâu hơn. Đây là thời gian xử lý bên
+trong verifier, không phải thời gian chờ trong hàng đợi hay thời gian từ lúc
+nhân viên đưa QR ra đến khi cổng mở. Các số đo thay đổi theo máy và lần chạy.

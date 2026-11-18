@@ -55,3 +55,26 @@ foreach(target client server assignment seedgen)
         $<$<CXX_COMPILER_ID:MSVC>:/W4>
     )
 endforeach()
+
+enable_testing()
+
+set(TEST_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/test")
+
+add_executable(test_client_generation tests/client_generation.cpp)
+add_executable(test_server_verifier tests/server_verifier.cpp)
+add_executable(test_peak_load tests/peak_load.cpp)
+
+foreach(test_target test_client_generation test_server_verifier test_peak_load)
+    target_link_libraries(${test_target} PRIVATE assignment_core)
+    set_target_properties(${test_target} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${TEST_OUTPUT_DIRECTORY}"
+    )
+    target_compile_options(${test_target} PRIVATE
+        $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-pedantic>
+        $<$<CXX_COMPILER_ID:MSVC>:/W4>
+    )
+endforeach()
+
+add_test(NAME client_generation COMMAND test_client_generation)
+add_test(NAME server_verifier COMMAND test_server_verifier)
+add_test(NAME peak_load COMMAND test_peak_load)

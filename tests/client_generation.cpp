@@ -3,6 +3,8 @@
 
 #include <cassert>
 #include <iostream>
+#include <sstream>
+#include <utility>
 
 int main()
 {
@@ -35,6 +37,40 @@ int main()
 
     const auto qr_text = client::generate_qr(key_pair.secret_key, key_pair.key_id);
     assert(qr_text.size() == qrgen::TEXT_SIZE);
+
+    const auto rendered_qr = client::render_qr_terminal(qr_text);
+    assert(rendered_qr.find("\x1b[40m") != std::string::npos);
+    assert(rendered_qr.find("\x1b[47m") != std::string::npos);
+    std::string visible_qr;
+    for (std::size_t i = 0; i < rendered_qr.size();)
+    {
+        if (rendered_qr[i] == '\x1b')
+        {
+            const auto end = rendered_qr.find('m', i);
+            assert(end != std::string::npos);
+            i = end + 1;
+        }
+        else
+            visible_qr.push_back(rendered_qr[i++]);
+    }
+
+    std::istringstream rendered_stream{visible_qr};
+    std::vector<std::string> rows;
+    for (std::string row; std::getline(rendered_stream, row);)
+        rows.push_back(std::move(row));
+    assert(rows.size() > 8);
+    assert(rows.front().size() == rows.size() * 2);
+    for (const auto& row : rows)
+    {
+        assert(row.size() == rows.front().size());
+        assert(row.substr(0, 8) == "        ");
+        assert(row.substr(row.size() - 8) == "        ");
+    }
+    for (std::size_t i = 0; i < 4; ++i)
+    {
+        assert(rows[i].find_first_not_of(' ') == std::string::npos);
+        assert(rows[rows.size() - 1 - i].find_first_not_of(' ') == std::string::npos);
+    }
 
     const auto qr = qrgen::parse_qr(qr_text);
     assert(qr);

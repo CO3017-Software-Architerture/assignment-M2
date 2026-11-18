@@ -1,7 +1,8 @@
 The verifier requires a C++17 compiler and the libsodium development package.
 
 The client also requires libsodium. It reads a binary Ed25519 seed containing
-exactly 32 bytes, then prints a new QR text every 20 seconds. `src/seedgen.cpp`
+exactly 32 bytes, then renders a new QR on an ANSI-capable terminal every 20 seconds
+and prints its text for copy/paste. `src/seedgen.cpp`
 creates `private_seed/client.seed` and prints the matching public key. If the
 seed already exists, it derives and prints the same public key without replacing
 the seed. The seed directory is ignored by Git; do not share or commit the seed.
@@ -26,7 +27,8 @@ key per line. Then build and run the client:
 ```powershell
 New-Item -ItemType Directory -Force build | Out-Null
 g++ -std=c++17 -Wall -Wextra -pedantic -Iheader `
-    src\client_main.cpp src\client_entry.cpp src\client.cpp src\qrgen.cpp -lsodium -o build\client.exe
+    src\client_main.cpp src\client_entry.cpp src\client.cpp src\qrgen.cpp src\qrcodegen.cpp `
+    -lsodium -o build\client.exe
 .\build\client.exe .\private_seed\client.seed
 ```
 
@@ -48,7 +50,7 @@ g++ -std=c++17 -Wall -Wextra -pedantic \
 ./build/seedgen
 
 g++ -std=c++17 -Wall -Wextra -pedantic -Iheader \
-    src/client_main.cpp src/client_entry.cpp src/client.cpp src/qrgen.cpp \
+    src/client_main.cpp src/client_entry.cpp src/client.cpp src/qrgen.cpp src/qrcodegen.cpp \
     -lsodium -o build/client
 ./build/client private_seed/client.seed
 ```
@@ -72,7 +74,7 @@ Run the client generation test:
 
 ```sh
 g++ -std=c++17 -Wall -Wextra -pedantic -Iheader \
-    tests/client_generation.cpp src/client.cpp src/qrgen.cpp \
+    tests/client_generation.cpp src/client.cpp src/qrgen.cpp src/qrcodegen.cpp \
     -lsodium -o build/client-test
 ./build/client-test
 ```

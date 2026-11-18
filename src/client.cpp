@@ -1,5 +1,6 @@
 #include "client.hpp"
 
+#include "qrcodegen.hpp"
 #include "qrgen.hpp"
 
 #include <algorithm>
@@ -23,7 +24,7 @@ namespace
 
     struct SeedWiper
     {
-        std::array<std::uint8_t, crypto_sign_SEEDBYTES>& seed;
+        std::array<std::uint8_t, crypto_sign_SEEDBYTES> &seed;
 
         ~SeedWiper()
         {
@@ -33,7 +34,7 @@ namespace
 
     struct SecretKeyWiper
     {
-        client::secret_key_t& secret_key;
+        client::secret_key_t &secret_key;
 
         ~SecretKeyWiper()
         {
@@ -42,7 +43,7 @@ namespace
     };
 }
 
-client::LoadedSecretKey client::load_secret_key(const std::string& path)
+client::LoadedSecretKey client::load_secret_key(const std::string &path)
 {
     initialize_sodium();
 
@@ -52,7 +53,7 @@ client::LoadedSecretKey client::load_secret_key(const std::string& path)
 
     std::array<std::uint8_t, crypto_sign_SEEDBYTES> seed{};
     SeedWiper wipe_seed{seed};
-    input.read(reinterpret_cast<char*>(seed.data()),
+    input.read(reinterpret_cast<char *>(seed.data()),
                static_cast<std::streamsize>(seed.size()));
     if (input.gcount() != static_cast<std::streamsize>(seed.size()) ||
         input.peek() != std::char_traits<char>::eof())
@@ -72,7 +73,8 @@ client::LoadedSecretKey client::load_secret_key(const std::string& path)
 std::uint32_t client::unix_time()
 {
     const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(
-        std::chrono::system_clock::now().time_since_epoch()).count();
+                             std::chrono::system_clock::now().time_since_epoch())
+                             .count();
     if (seconds < 0)
         throw std::runtime_error("System clock is before the Unix epoch");
 
@@ -89,7 +91,7 @@ nonce_t client::random_nonce()
 }
 
 client::payload_t client::build_payload(key_id_t key_id, std::uint32_t timestamp,
-                                        const nonce_t& nonce)
+                                        const nonce_t &nonce)
 {
     payload_t payload{};
     payload[0] = qrgen::VERSION;
@@ -107,14 +109,14 @@ client::payload_t client::build_payload(key_id_t key_id, std::uint32_t timestamp
     return payload;
 }
 
-std::vector<std::uint8_t> client::build_signed_message(const payload_t& payload)
+std::vector<std::uint8_t> client::build_signed_message(const payload_t &payload)
 {
     const auto message = qrgen::build_signed_message(payload);
     return {message.begin(), message.end()};
 }
 
-client::signature_t client::sign(const secret_key_t& secret_key,
-                                 const std::vector<std::uint8_t>& message)
+client::signature_t client::sign(const secret_key_t &secret_key,
+                                 const std::vector<std::uint8_t> &message)
 {
     initialize_sodium();
 
@@ -125,7 +127,7 @@ client::signature_t client::sign(const secret_key_t& secret_key,
     return signature;
 }
 
-std::string client::encode_qr_text(const std::vector<std::uint8_t>& bytes)
+std::string client::encode_qr_text(const std::vector<std::uint8_t> &bytes)
 {
     initialize_sodium();
 
@@ -137,7 +139,7 @@ std::string client::encode_qr_text(const std::vector<std::uint8_t>& bytes)
     return std::string(encoded.data());
 }
 
-std::string client::generate_qr(const secret_key_t& secret_key, key_id_t key_id)
+std::string client::generate_qr(const secret_key_t &secret_key, key_id_t key_id)
 {
     const auto payload = build_payload(key_id, unix_time(), random_nonce());
     const auto message = build_signed_message(payload);
@@ -150,12 +152,48 @@ std::string client::generate_qr(const secret_key_t& secret_key, key_id_t key_id)
     return encode_qr_text(token);
 }
 
-void client::qr_refresh_loop(const secret_key_t& secret_key, key_id_t key_id)
+std::string client::render_qr_terminal(const std::string &qr_text)
+{
+    const auto qr = qrcodegen::QrCode::encodeText(
+        qr_text.c_str(), qrcodegen::QrCode::Ecc::MEDIUM);
+    constexpr int QUIET_ZONE = 4;
+    const auto size = qr.getSize();
+    const auto width = static_cast<std::size_t>(size + 2 * QUIET_ZONE);
+
+    std::string output;
+    output.reserve(width * (2 * width + 1));
+    for (int y = -QUIET_ZONE; y < size + QUIET_ZONE; ++y)
+    {
+        bool have_background = false;
+        bool previous_dark = false;
+        for (int x = -QUIET_ZONE; x < size + QUIET_ZONE; ++x)
+        {
+            const bool dark = qr.getModule(x, y);
+            if (!have_background || dark != previous_dark)
+            {
+                output += dark ? "\x1b[40m" : "\x1b[47m";
+                previous_dark = dark;
+                have_background = true;
+            }
+            output += "  ";
+        }
+        output += "\x1b[0m";
+        output.push_back('\n');
+    }
+    return output;
+}
+
+void client::qr_refresh_loop(const secret_key_t &secret_key, key_id_t key_id)
 {
     while (true)
     {
-        std::cout << generate_qr(secret_key, key_id) << std::endl;
+        const auto qr_text = generate_qr(secret_key, key_id);
+        std::cout << "Scan QR:\n"
+                  << render_qr_terminal(qr_text)
+                  << "\nQR text: " << qr_text << '\n'
+                  << std::flush;
+        if (!std::cout)
+            throw std::runtime_error("Failed to write QR code to terminal");
         std::this_thread::sleep_for(std::chrono::seconds{20});
     }
 }
-
