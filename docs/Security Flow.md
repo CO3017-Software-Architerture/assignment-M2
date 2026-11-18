@@ -1,6 +1,6 @@
 # QR Turnstile Verification Module: Security Workflow
 
-This is a workflow and call graph for a QR-based turnstile access control system. It is intended to be implemented in C or C++ using libsodium for cryptography, and a small JSON parser for the keys file.
+This is a workflow and call graph for a QR-based turnstile access control system. It uses C++ and libsodium.
 
 ## 1. Scope and Components
 
@@ -21,7 +21,7 @@ This is a workflow and call graph for a QR-based turnstile access control system
 | Verifier (stands in for the kiosk & turnstile) | Decodes, verifies, and decides ALLOW or DENY | Public key cache, nonce cache, local anti-passback|
 | Provisioned files | Fixed inputs created outside this module | Secret seed file, keys file |
 
-Libraries: [libsodium](https://github.com/jedisct1/libsodium) (Ed25519, SHA-256, random bytes, harder to get wrong), a small JSON parser for the keys file (or not, instead injecting right at runtime), any Base64url encoder (we choose base64url encoding already present in libsodium), as well as a QR renderer, using [nayuki's](https://github.com/nayuki/QR-Code-generator)
+Libraries: [libsodium](https://github.com/jedisct1/libsodium) for Ed25519, SHA-256, random bytes and Base64url encoding, and [Nayuki's QR Code generator](https://github.com/nayuki/QR-Code-generator) for QR rendering.
 
 ## 2. Constants and QR Format
 
@@ -44,14 +44,19 @@ Libraries: [libsodium](https://github.com/jedisct1/libsodium) (Ed25519, SHA-256,
 | key\_id | 8 bytes | First 8 bytes of SHA-256(public key). No PII (employee ID) used. |
 | timestamp | 4 bytes | Unsigned Unix seconds, big-endian |
 | nonce | 8 bytes | Random, (practically) unique per QR code |
-| signature | 64 bytes | Ed25519 over `prefix + key_id + version + timestamp + nonce` |
+| signature | 64 bytes | Ed25519 over the prefix followed by the exact 21 payload bytes in table order: version, key_id, timestamp, nonce |
 
 **Notes:**
-- Key ID is first 8 bytes of SHA-256(public key), resulting in 64 bits of entropy, making collisions extremely unlikely.
+- Key ID is the first 8 bytes of SHA-256(public key), transmitted in digest order and interpreted as a big-endian integer in C++.
 - In practice, the verifier clock is synced to NTP. The timestamp on the QR is assumed to be authentic. In a real production system, the generator clock must be verified to be NTP-synced (App Attestation).
 - Timestamp is 4 bytes unsigned big-endian, so it will roll over in 2106.
 
 Total is 85 bytes, encoded to text for the QR image.
+
+The verifier CLI preloads public keys from `employee_public_keys.txt` in the
+working directory or from the optional path argument. The file contains one
+64-character Ed25519 public key per line. Blank lines are ignored. A scan is
+one line in the form `IN <qr_text>` or `OUT <qr_text>`. Both directions share one verifier.
 
 ## 3. Workflows
 

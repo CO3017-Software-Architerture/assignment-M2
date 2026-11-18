@@ -1,6 +1,7 @@
 #ifndef MAIN_H
 #define MAIN_H
 #define SODIUM_STATIC
+// #define CLIENT_NO_MAIN
 
 #include <string>
 #include <vector>
@@ -9,7 +10,7 @@
 #include <sodium.h>
 #include <array>
 
-using key_id_t = uint64_t;
+using key_id_t = std::uint64_t;
 
 
 enum class Direction
@@ -27,7 +28,8 @@ enum class Decision
     REPLAY,
     UNKNOWN_KEY,
     PASSBACK,
-    MALFORMED
+    MALFORMED,
+    INTERNAL_ERROR
 };
 
 int run();

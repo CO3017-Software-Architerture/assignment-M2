@@ -1,22 +1,22 @@
+#include "server.hpp"
+#include "client.hpp"
+
 #include <iostream>
-#include <cassert>
+#include <string>
 
-#include "..\header\main.hpp"
-#include "..\header\qrgen.hpp"
-#include "..\header\server.hpp"
-
-
-void setupSodium()
+int main(int argc, char const* argv[])
 {
-    if (sodium_init() < 0) {
-        std::cerr << "Failed to initialize libsodium!" << std::endl;
-        std::exit(EXIT_FAILURE);
+    if (argc < 2)
+    {
+        std::cerr << "Usage: " << argv[0] << " client|server [arguments...]\n";
+        return 1;
     }
-}
 
+    if (std::string{argv[1]} == "server")
+        return server::main(argc - 1, argv + 1);
+    if (std::string{argv[1]} == "client")
+        return Client::main(argc - 1, argv + 1);
 
-int main()
-{
-    setupSodium();
-    return 0;
+    std::cerr << "Unknown command. Use client or server.\n";
+    return 1;
 }
