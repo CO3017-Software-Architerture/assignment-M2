@@ -1,6 +1,8 @@
 #pragma once
 
-#include "main.hpp"
+#include "PassbackStore.hpp"
+#include "domain.hpp"
+#include <cstdint>
 #include <map>
 
 enum class Location
@@ -9,21 +11,23 @@ enum class Location
     OUT
 };
 
-class PassbackCache
+class PassbackCache : public IPassbackStore
 {
 public:
     using passback_map_t = std::map<key_id_t, Location>;
 private:
     passback_map_t m_passbackMap;
 
-
 public:
     PassbackCache() = default;
-    ~PassbackCache() = default;
+    ~PassbackCache() override = default;
 
-    bool check_anti_passback(key_id_t key_id, Direction direction) const;
+    // Returns true when the direction is allowed without changing state.
+    bool check_anti_passback(key_id_t key_id, Direction direction) const override;
 
-    bool commit_passback(key_id_t key_id, Direction direction);
+    // Returns true when state is committed; false when the direction is disallowed.
+    bool commit_passback(key_id_t key_id, Direction direction) override;
 
-    bool reset_passback(key_id_t key_id);
+    // Returns true when an existing state was removed; false when no state existed.
+    bool reset_passback(key_id_t key_id) override;
 };

@@ -1,19 +1,17 @@
-#ifndef BARRIER_HPP
-#define BARRIER_HPP
+#pragma once
 
-class Barrier
+#include "IFacade.hpp"
+
+class Barrier : public IBarrier
 {
 private:
     bool m_isOpen{false};
 
 public:
     Barrier() : m_isOpen(false) {}
-    ~Barrier() = default;
+    ~Barrier() override = default;
 
-    // TODO add console logging 
-    void OpenGate() { m_isOpen = true; }
-    void CloseGate() { m_isOpen = false; }
-    bool isOpen() const { return m_isOpen; }
+    void OpenGate() override { m_isOpen = true; }
+    void CloseGate() override { m_isOpen = false; }
+    bool isOpen() const override { return m_isOpen; }
 };
-
-#endif

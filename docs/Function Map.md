@@ -36,15 +36,15 @@
 | --- | --- | --- | --- |
 | `load_key_file(path)` | Parses the keys file, computes each key\_id from its public key, builds the cache | `derive_key_id()` | main() |
 | `KeyCache::find(key_id)` | Returns the key record or none | none | `handle_scan()` |
-| `NonceCache::seen_or_insert(key_id, nonce, ts)` | Returns true if already present, otherwise stores it | none | `handle_scan()` |
+| `NonceCache::seen_or_insert(key_id, nonce, ts)` | Returns true if already present (replay); false if newly inserted | none | `handle_scan()` |
 | `NonceCache::purge_expired(now)` | Deletes entries older than 60 s | none | purge timer, or start of `handle_scan()` |
 
 ### Module: passback\_state (verifier state, new)
 | Function | Does | Calls | Called by |
 | --- | --- | --- | --- |
 | `check_anti_passback(key_id, direction)` | Reads the key's state. Returns false for ENTRY while the state is IN, or for EXIT while it is OUT. Changes nothing | none | `handle_scan()` |
-| `commit_passback(key_id, direction)` | Stores the new state (ENTRY gives IN, EXIT gives OUT) | none | `handle_scan()` |
-| `reset_passback(key_id)` | Clears one key's state by hand (back to none), used by security after a PASSBACK denial | none | admin, tests |
+| `commit_passback(key_id, direction)` | Returns true and stores the new state (ENTRY gives IN, EXIT gives OUT); returns false if direction is disallowed | `check_anti_passback()` | `handle_scan()` |
+| `reset_passback(key_id)` | Clears one key's state by hand (back to none); returns true if a state existed, false otherwise | none | admin, tests |
 
 ### Module: verifier
 

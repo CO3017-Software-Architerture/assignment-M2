@@ -1,20 +1,30 @@
 #ifndef CLIENT_HPP
 #define CLIENT_HPP
 
-
-#include <sodium.h>
-#include <array>
-#include <main.hpp>
+#include "domain.hpp"
 #include "nonce.hpp"
+#include "qrgen.hpp"
+#include <array>
+#include <chrono>
+#include <sodium.h>
+#include <string>
+#include <vector>
 
 namespace client
 {
-    inline constexpr std::size_t PAYLOAD_SIZE = 21;
+    struct RefreshConfig
+    {
+        std::chrono::seconds qr_refresh_interval{20};
+    };
 
-    using public_key_t = std::array<std::uint8_t, crypto_sign_PUBLICKEYBYTES>;
-    using secret_key_t = std::array<std::uint8_t, crypto_sign_SECRETKEYBYTES>;
-    using signature_t = std::array<std::uint8_t, crypto_sign_BYTES>;
-    using payload_t = std::array<std::uint8_t, PAYLOAD_SIZE>;
+    using ClientConfig = RefreshConfig;
+
+    inline constexpr std::size_t PAYLOAD_SIZE = qrgen::PAYLOAD_SIZE;
+
+    using public_key_t = qrgen::PublicKey;
+    using secret_key_t = qrgen::SecretKey;
+    using signature_t = qrgen::Signature;
+    using payload_t = qrgen::Payload;
 
     struct LoadedSecretKey
     {
@@ -43,6 +53,12 @@ namespace client
     std::string encode_qr_text(
         const std::vector<std::uint8_t>& bytes);
 
+    std::string generate_qr_at(
+        const secret_key_t& secret_key,
+        key_id_t key_id,
+        std::uint32_t timestamp,
+        const nonce_t& nonce);
+
     std::string generate_qr(
         const secret_key_t& secret_key,
         key_id_t key_id);
@@ -51,12 +67,8 @@ namespace client
 
     void qr_refresh_loop(
         const secret_key_t& secret_key,
-        key_id_t key_id);
-}
-
-namespace Client
-{
-    int main(int argc, char const* argv[]);
-}
+        key_id_t key_id,
+        RefreshConfig config = {});
+} // namespace client
 
 #endif // CLIENT_HPP

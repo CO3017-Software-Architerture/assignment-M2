@@ -1,123 +1,214 @@
 #include "server.hpp"
-#include "Verifier.hpp"
-
-#include <cstdlib>
+#include "qrgen.hpp"
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 
-namespace
+namespace server
 {
-    constexpr auto DEFAULT_KEYS_FILE = "employee_public_keys.txt";
+    namespace
+    {
+        std::optional<qrgen::PublicKey> decode_public_key_token(std::string_view token)
+        {
+            if (token.empty() || !qrgen::crypto_init())
+            {
+                return std::nullopt;
+            }
+
+            qrgen::PublicKey pk{};
+            std::size_t bin_len = 0;
+
+            if (token.size() == crypto_sign_PUBLICKEYBYTES * 2 &&
+                sodium_hex2bin(
+                    pk.data(),
+                    pk.size(),
+                    token.data(),
+                    token.size(),
+                    nullptr,
+                    &bin_len,
+                    nullptr) == 0 &&
+                bin_len == pk.size())
+            {
+                return pk;
+            }
+
+            for (int variant : {
+                     sodium_base64_VARIANT_URLSAFE_NO_PADDING,
+                     sodium_base64_VARIANT_URLSAFE,
+                     sodium_base64_VARIANT_ORIGINAL_NO_PADDING,
+                     sodium_base64_VARIANT_ORIGINAL})
+            {
+                if (sodium_base642bin(
+                        pk.data(),
+                        pk.size(),
+                        token.data(),
+                        token.size(),
+                        nullptr,
+                        &bin_len,
+                        nullptr,
+                        variant) == 0 &&
+                    bin_len == pk.size())
+                {
+                    return pk;
+                }
+            }
+
+            return std::nullopt;
+        }
+    } // namespace
 
     Verifier::KeyCache load_key_file(const std::string& path)
     {
+        if (!qrgen::crypto_init())
+        {
+            throw std::runtime_error("Failed to initialize libsodium");
+        }
+
         std::ifstream file(path);
         if (!file)
-            throw std::runtime_error("Cannot open employee public key file: " + path);
+        {
+            throw std::runtime_error("Unable to open key file: " + path);
+        }
 
         Verifier::KeyCache keys;
         std::string line;
-        std::size_t line_number = 0;
         while (std::getline(file, line))
         {
-            ++line_number;
-            const auto start = line.find_first_not_of(" \t\r");
-            if (start == std::string::npos)
-                continue;
-            const auto end = line.find_last_not_of(" \t\r");
-            const auto hex = std::string_view(line).substr(start, end - start + 1);
-            qrgen::PublicKey key{};
-            std::size_t size = 0;
-            if (hex.size() != key.size() * 2 ||
-                sodium_hex2bin(key.data(), key.size(), hex.data(), hex.size(),
-                               nullptr, &size, nullptr) != 0 || size != key.size())
-                throw std::runtime_error(path + ":" + std::to_string(line_number) +
-                                         ": expected an Ed25519 public key as 64 hex characters");
+            const auto comment_pos = line.find('#');
+            if (comment_pos != std::string::npos)
+            {
+                line.erase(comment_pos);
+            }
 
-            const auto key_id = qrgen::derive_key_id(key);
-            if (!keys.emplace(key_id, key).second)
-                throw std::runtime_error(path + ":" + std::to_string(line_number) +
-                                         ": duplicate public key or key ID");
+            std::istringstream iss(line);
+            std::vector<std::string> tokens;
+            std::string tok;
+            while (iss >> tok)
+            {
+                tokens.push_back(tok);
+            }
+            if (tokens.empty())
+            {
+                continue;
+            }
+
+            for (const auto& candidate : tokens)
+            {
+                const auto pk = decode_public_key_token(candidate);
+                if (pk.has_value())
+                {
+                    keys[qrgen::derive_key_id(*pk)] = *pk;
+                    break;
+                }
+            }
         }
-        if (file.bad() || !file.eof())
-            throw std::runtime_error("Cannot read employee public key file: " + path);
-        if (keys.empty())
-            throw std::runtime_error("Employee public key file is empty: " + path);
         return keys;
     }
 
-    // Retain one byte past the maximum so oversized lines are always rejected.
-    std::optional<std::string> read_scan()
+    std::optional<Direction> parse_direction(std::string_view token)
     {
-        constexpr auto max_line_size = qrgen::TEXT_SIZE + sizeof("OUT ");
-        std::string line;
-        for (char ch; std::cin.get(ch);)
+        if (token == "IN" || token == "ENTRY")
         {
-            if (ch == '\n')
-                return line;
-            if (line.size() <= max_line_size)
-                line.push_back(ch);
+            return Direction::IN;
         }
-        if (!line.empty() && std::cin.eof() && !std::cin.bad())
-            return line;
+        if (token == "OUT" || token == "EXIT")
+        {
+            return Direction::OUT;
+        }
         return std::nullopt;
     }
-}
 
-int server::main(int argc, char const* argv[])
+    std::optional<ScanRequest> parse_scan_line(std::string_view line)
+    {
+        std::string text(line);
+        std::istringstream iss(text);
+        std::string first;
+        std::string second;
+        std::string extra;
+
+        if (!(iss >> first))
+        {
+            return std::nullopt;
+        }
+
+        if (!(iss >> second))
+        {
+            return ScanRequest{Direction::IN, first};
+        }
+
+        if (iss >> extra)
+        {
+            return std::nullopt;
+        }
+
+        const auto direction = parse_direction(first);
+        if (!direction.has_value())
+        {
+            return std::nullopt;
+        }
+        return ScanRequest{*direction, second};
+    }
+} // namespace server
+
+namespace Server
 {
-    if (argc > 2)
+    int main(int argc, char const* argv[])
     {
-        std::cerr << "Usage: " << argv[0] << " [EMPLOYEE_PUBLIC_KEYS_FILE]\n"
-                  << "Default: " << DEFAULT_KEYS_FILE << '\n'
-                  << "Enter IN <qr_text> or OUT <qr_text> on stdin.\n";
-        return EXIT_FAILURE;
-    }
-    if (sodium_init() < 0)
-    {
-        std::cerr << "Failed to initialize libsodium\n";
-        return EXIT_FAILURE;
-    }
+        if (!qrgen::crypto_init())
+        {
+            std::cerr << "Error: Failed to initialize libsodium\n";
+            return 1;
+        }
 
-    try
-    {
-        const auto keys = load_key_file(argc == 2 ? argv[1] : DEFAULT_KEYS_FILE);
         NonceCache nonceCache;
         PassbackCache passbackCache;
         Barrier barrier;
-        Verifier verifier(nonceCache, passbackCache, barrier, keys);
-        while (const auto line = read_scan())
-        {
-            std::string_view record{*line};
-            if (!record.empty() && record.back() == '\r')
-                record.remove_suffix(1);
+        Verifier::KeyCache keys;
 
-            auto direction = static_cast<Direction>(-1);
-            std::string_view qr_text;
-            if (record.substr(0, 3) == "IN ")
-            {
-                direction = Direction::IN;
-                qr_text = record.substr(3);
-            }
-            else if (record.substr(0, 4) == "OUT ")
-            {
-                direction = Direction::OUT;
-                qr_text = record.substr(4);
-            }
-            const auto decision = verifier.handle_scan(qr_text, direction, Verifier::Clock::now());
-            std::cout << decision_name(decision) << std::endl;
-        }
-        if (std::cin.bad() || !std::cin.eof())
+        if (argc > 1)
         {
-            std::cerr << "Failed to read scanner input\n";
-            return EXIT_FAILURE;
+            try
+            {
+                keys = server::load_key_file(argv[1]);
+            }
+            catch (const std::exception& ex)
+            {
+                std::cerr << "Error: " << ex.what() << '\n';
+                return 1;
+            }
         }
-        return EXIT_SUCCESS;
+
+        Verifier verifier(nonceCache, passbackCache, barrier, keys);
+
+        std::string line;
+        while (std::getline(std::cin, line))
+        {
+            if (line.empty())
+            {
+                continue;
+            }
+
+            const auto req = server::parse_scan_line(line);
+            const auto now = Verifier::Clock::now();
+            if (!req.has_value())
+            {
+                const Decision decision = verifier.handle_scan("", Direction::IN, now);
+                std::cout << decision_name(decision) << '\n';
+                continue;
+            }
+
+            const Decision decision = verifier.handle_scan(req->qr_text, req->direction, now);
+            std::cout << decision_name(decision) << '\n';
+        }
+        return 0;
     }
-    catch (const std::exception& error)
+} // namespace Server
+
+namespace server
+{
+    int main(int argc, char const* argv[])
     {
-        std::cerr << error.what() << '\n';
-        return EXIT_FAILURE;
+        return Server::main(argc, argv);
     }
 }

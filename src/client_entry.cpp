@@ -1,42 +1,46 @@
+#include "client_entry.hpp"
 #include "client.hpp"
-
+#include "qrgen.hpp"
 #include <iostream>
+#include <string>
 
-namespace
+namespace client
 {
-    struct SecretKeyWiper
+    int main(int argc, char const* argv[])
     {
-        client::secret_key_t& secret_key;
-
-        ~SecretKeyWiper()
+        const std::string seed_path = (argc > 1) ? argv[1] : "private_seed/client.seed";
+        try
         {
-            sodium_memzero(secret_key.data(), secret_key.size());
+            if (!qrgen::crypto_init())
+            {
+                std::cerr << "Error: Failed to initialize libsodium\n";
+                return 1;
+            }
+
+            auto loaded = client::load_secret_key(seed_path);
+            qrgen::SecretBufferWiper<client::secret_key_t> secret_wiper(loaded.secret_key);
+
+            if (argc > 2 && std::string_view(argv[2]) == "--once")
+            {
+                std::cout << client::generate_qr(loaded.secret_key, loaded.key_id) << '\n';
+                return 0;
+            }
+
+            client::qr_refresh_loop(loaded.secret_key, loaded.key_id);
+            return 0;
         }
-    };
-}
+        catch (const std::exception& ex)
+        {
+            std::cerr << "Error: " << ex.what() << '\n';
+            return 1;
+        }
+    }
+} // namespace client
 
 namespace Client
 {
     int main(int argc, char const* argv[])
     {
-        if (argc != 2)
-        {
-            std::cerr << "Usage: " << argv[0] << " SECRET_SEED_FILE\n";
-            return 1;
-        }
-
-        try
-        {
-            auto loaded = client::load_secret_key(argv[1]);
-            SecretKeyWiper wipe_secret_key{loaded.secret_key};
-            client::qr_refresh_loop(loaded.secret_key, loaded.key_id);
-        }
-        catch (const std::exception& error)
-        {
-            std::cerr << error.what() << '\n';
-            return 1;
-        }
-
-        return 0;
+        return client::main(argc, argv);
     }
 }

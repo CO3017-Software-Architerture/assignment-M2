@@ -1,199 +1,130 @@
 #include "client.hpp"
-
+#include "nonce.hpp"
 #include "qrcodegen.hpp"
-#include "qrgen.hpp"
-
-#include <algorithm>
 #include <chrono>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <thread>
 
-namespace
+namespace client
 {
-    constexpr std::size_t KEY_ID_OFFSET = 1;
-    constexpr std::size_t TIMESTAMP_OFFSET = KEY_ID_OFFSET + sizeof(key_id_t);
-    constexpr std::size_t NONCE_OFFSET = TIMESTAMP_OFFSET + sizeof(std::uint32_t);
-
-    void initialize_sodium()
+    LoadedSecretKey load_secret_key(const std::string& path)
     {
-        if (sodium_init() < 0)
+        if (!qrgen::crypto_init())
+        {
             throw std::runtime_error("Failed to initialize libsodium");
+        }
+
+        std::ifstream file(path, std::ios::binary);
+        if (!file)
+        {
+            throw std::runtime_error("Unable to open seed file: " + path);
+        }
+
+        qrgen::Seed seed{};
+        qrgen::SecretBufferWiper<qrgen::Seed> seed_wiper(seed);
+
+        file.read(reinterpret_cast<char*>(seed.data()), static_cast<std::streamsize>(seed.size()));
+        if (file.gcount() != static_cast<std::streamsize>(seed.size()) || file.peek() != std::ifstream::traits_type::eof())
+        {
+            throw std::runtime_error("Seed file must contain exactly 32 bytes: " + path);
+        }
+
+        LoadedSecretKey loaded{};
+        if (crypto_sign_seed_keypair(loaded.public_key.data(), loaded.secret_key.data(), seed.data()) != 0)
+        {
+            sodium_memzero(loaded.secret_key.data(), loaded.secret_key.size());
+            throw std::runtime_error("Failed to derive Ed25519 keypair from seed");
+        }
+
+        loaded.key_id = qrgen::derive_key_id(loaded.public_key);
+        return loaded;
     }
 
-    struct SeedWiper
+    std::uint32_t unix_time()
     {
-        std::array<std::uint8_t, crypto_sign_SEEDBYTES> &seed;
+        const auto now = std::chrono::system_clock::now();
+        const auto secs = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
+        return static_cast<std::uint32_t>(static_cast<std::uint64_t>(secs));
+    }
 
-        ~SeedWiper()
-        {
-            sodium_memzero(seed.data(), seed.size());
-        }
-    };
-
-    struct SecretKeyWiper
+    nonce_t random_nonce()
     {
-        client::secret_key_t &secret_key;
+        return generate_nonce();
+    }
 
-        ~SecretKeyWiper()
-        {
-            sodium_memzero(secret_key.data(), secret_key.size());
-        }
-    };
-}
-
-client::LoadedSecretKey client::load_secret_key(const std::string &path)
-{
-    initialize_sodium();
-
-    std::ifstream input(path, std::ios::binary);
-    if (!input)
-        throw std::runtime_error("Cannot open secret seed file: " + path);
-
-    std::array<std::uint8_t, crypto_sign_SEEDBYTES> seed{};
-    SeedWiper wipe_seed{seed};
-    input.read(reinterpret_cast<char *>(seed.data()),
-               static_cast<std::streamsize>(seed.size()));
-    if (input.gcount() != static_cast<std::streamsize>(seed.size()) ||
-        input.peek() != std::char_traits<char>::eof())
-        throw std::runtime_error("Secret seed file must contain exactly 32 bytes");
-    if (input.bad())
-        throw std::runtime_error("Failed to read secret seed file: " + path);
-
-    LoadedSecretKey loaded{};
-    if (crypto_sign_seed_keypair(loaded.public_key.data(), loaded.secret_key.data(),
-                                 seed.data()) != 0)
-        throw std::runtime_error("Cannot derive Ed25519 key pair from secret seed");
-
-    loaded.key_id = qrgen::derive_key_id(loaded.public_key);
-    return loaded;
-}
-
-std::uint32_t client::unix_time()
-{
-    const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(
-                             std::chrono::system_clock::now().time_since_epoch())
-                             .count();
-    if (seconds < 0)
-        throw std::runtime_error("System clock is before the Unix epoch");
-
-    return static_cast<std::uint32_t>(seconds);
-}
-
-nonce_t client::random_nonce()
-{
-    initialize_sodium();
-
-    nonce_t nonce{};
-    randombytes_buf(nonce.data(), nonce.size());
-    return nonce;
-}
-
-client::payload_t client::build_payload(key_id_t key_id, std::uint32_t timestamp,
-                                        const nonce_t &nonce)
-{
-    payload_t payload{};
-    payload[0] = qrgen::VERSION;
-
-    // Store multi-byte numbers in big-endian order for the verifier.
-    for (std::size_t i = 0; i < sizeof(key_id); ++i)
-        payload[KEY_ID_OFFSET + i] =
-            static_cast<std::uint8_t>(key_id >> (8 * (sizeof(key_id) - 1 - i)));
-
-    for (std::size_t i = 0; i < sizeof(timestamp); ++i)
-        payload[TIMESTAMP_OFFSET + i] =
-            static_cast<std::uint8_t>(timestamp >> (8 * (sizeof(timestamp) - 1 - i)));
-
-    std::copy(nonce.begin(), nonce.end(), payload.begin() + NONCE_OFFSET);
-    return payload;
-}
-
-std::vector<std::uint8_t> client::build_signed_message(const payload_t &payload)
-{
-    const auto message = qrgen::build_signed_message(payload);
-    return {message.begin(), message.end()};
-}
-
-client::signature_t client::sign(const secret_key_t &secret_key,
-                                 const std::vector<std::uint8_t> &message)
-{
-    initialize_sodium();
-
-    signature_t signature{};
-    if (crypto_sign_detached(signature.data(), nullptr, message.data(), message.size(),
-                             secret_key.data()) != 0)
-        throw std::runtime_error("Failed to sign QR payload");
-    return signature;
-}
-
-std::string client::encode_qr_text(const std::vector<std::uint8_t> &bytes)
-{
-    initialize_sodium();
-
-    std::vector<char> encoded(
-        sodium_base64_ENCODED_LEN(bytes.size(), qrgen::BASE64_VARIANT));
-    if (sodium_bin2base64(encoded.data(), encoded.size(), bytes.data(), bytes.size(),
-                          qrgen::BASE64_VARIANT) == nullptr)
-        throw std::runtime_error("Failed to encode QR payload");
-    return std::string(encoded.data());
-}
-
-std::string client::generate_qr(const secret_key_t &secret_key, key_id_t key_id)
-{
-    const auto payload = build_payload(key_id, unix_time(), random_nonce());
-    const auto message = build_signed_message(payload);
-    const auto signature = sign(secret_key, message);
-
-    std::vector<std::uint8_t> token;
-    token.reserve(payload.size() + signature.size());
-    token.insert(token.end(), payload.begin(), payload.end());
-    token.insert(token.end(), signature.begin(), signature.end());
-    return encode_qr_text(token);
-}
-
-std::string client::render_qr_terminal(const std::string &qr_text)
-{
-    const auto qr = qrcodegen::QrCode::encodeText(
-        qr_text.c_str(), qrcodegen::QrCode::Ecc::MEDIUM);
-    constexpr int QUIET_ZONE = 4;
-    const auto size = qr.getSize();
-    const auto width = static_cast<std::size_t>(size + 2 * QUIET_ZONE);
-
-    std::string output;
-    output.reserve(width * (2 * width + 1));
-    for (int y = -QUIET_ZONE; y < size + QUIET_ZONE; ++y)
+    payload_t build_payload(key_id_t key_id, std::uint32_t timestamp, const nonce_t& nonce)
     {
-        bool have_background = false;
-        bool previous_dark = false;
-        for (int x = -QUIET_ZONE; x < size + QUIET_ZONE; ++x)
+        return qrgen::build_payload(key_id, timestamp, nonce);
+    }
+
+    std::vector<std::uint8_t> build_signed_message(const payload_t& payload)
+    {
+        return qrgen::build_signed_message(payload);
+    }
+
+    signature_t sign(const secret_key_t& secret_key, const std::vector<std::uint8_t>& message)
+    {
+        return qrgen::sign(secret_key, message);
+    }
+
+    std::string encode_qr_text(const std::vector<std::uint8_t>& bytes)
+    {
+        return qrgen::encode_qr_text(bytes);
+    }
+
+    std::string generate_qr_at(
+        const secret_key_t& secret_key,
+        key_id_t key_id,
+        std::uint32_t timestamp,
+        const nonce_t& nonce)
+    {
+        const payload_t payload = build_payload(key_id, timestamp, nonce);
+        const std::vector<std::uint8_t> signed_msg = build_signed_message(payload);
+        const signature_t sig = sign(secret_key, signed_msg);
+
+        std::vector<std::uint8_t> raw_qr;
+        raw_qr.reserve(payload.size() + sig.size());
+        raw_qr.insert(raw_qr.end(), payload.begin(), payload.end());
+        raw_qr.insert(raw_qr.end(), sig.begin(), sig.end());
+
+        return encode_qr_text(raw_qr);
+    }
+
+    std::string generate_qr(const secret_key_t& secret_key, key_id_t key_id)
+    {
+        return generate_qr_at(secret_key, key_id, unix_time(), random_nonce());
+    }
+
+    std::string render_qr_terminal(const std::string& qr_text)
+    {
+        const qrcodegen::QrCode qr = qrcodegen::QrCode::encodeText(
+            qr_text.c_str(), qrcodegen::QrCode::Ecc::LOW);
+
+        std::ostringstream out;
+        constexpr int border = 2;
+        for (int y = -border; y < qr.getSize() + border; ++y)
         {
-            const bool dark = qr.getModule(x, y);
-            if (!have_background || dark != previous_dark)
+            for (int x = -border; x < qr.getSize() + border; ++x)
             {
-                output += dark ? "\x1b[40m" : "\x1b[47m";
-                previous_dark = dark;
-                have_background = true;
+                out << (qr.getModule(x, y) ? "\033[40m  \033[0m" : "\033[47m  \033[0m");
             }
-            output += "  ";
+            out << '\n';
         }
-        output += "\x1b[0m";
-        output.push_back('\n');
+        return out.str();
     }
-    return output;
-}
 
-void client::qr_refresh_loop(const secret_key_t &secret_key, key_id_t key_id)
-{
-    while (true)
+    void qr_refresh_loop(const secret_key_t& secret_key, key_id_t key_id,
+                         RefreshConfig config)
     {
-        const auto qr_text = generate_qr(secret_key, key_id);
-        std::cout << "Scan QR:\n"
-                  << render_qr_terminal(qr_text)
-                  << "\nQR text: " << qr_text << '\n'
-                  << std::flush;
-        if (!std::cout)
-            throw std::runtime_error("Failed to write QR code to terminal");
-        std::this_thread::sleep_for(std::chrono::seconds{20});
+        while (true)
+        {
+            const std::string qr_text = generate_qr(secret_key, key_id);
+            std::cout << render_qr_terminal(qr_text)
+                      << "\nQR Text: " << qr_text << std::endl;
+            std::this_thread::sleep_for(config.qr_refresh_interval);
+        }
     }
-}
+} // namespace client
